@@ -127,10 +127,10 @@ class CourseDetailsXBlockMixin(object):
         # else:
         #     return datetime
 
-        if CourseOverview.get_from_id(raw_course_id).start_date is None:
+        if CourseOverview.get_from_id(raw_course_id).start is None:
             return ""
 
-        return str(CourseOverview.get_from_id(raw_course_id).start_date.date())
+        return str(CourseOverview.get_from_id(raw_course_id).start.date())
 
     @property
     def course_end_date(self):
@@ -139,10 +139,10 @@ class CourseDetailsXBlockMixin(object):
         except AttributeError:
             return ""
 
-        if CourseOverview.get_from_id(raw_course_id).end_date is None:
+        if CourseOverview.get_from_id(raw_course_id).end is None:
             return ""
 
-        return str(CourseOverview.get_from_id(raw_course_id).end_date.date())
+        return str(CourseOverview.get_from_id(raw_course_id).end.date())
     
     @property
     def course_institution(self):
