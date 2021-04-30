@@ -9,8 +9,16 @@ split into its own library.
 from django.template.context import Context
 from xblock.core import XBlock
 from xblock.fragment import Fragment
+from qualtricssurvey.models import SurveyStatus
+from django.conf import settings
+import json
+import requests
+from django.core import serializers
+import logging
+LOGGER = logging.getLogger(__name__)
 
-
+from ..models import QualtricsSubscriptions
+from ..qualtrics_api import QualtricsApi
 class XBlockFragmentBuilderMixin:
     """
     Create a default XBlock fragment builder
@@ -21,7 +29,7 @@ class XBlockFragmentBuilderMixin:
     static_js = [
         'view.js',
     ]
-    static_js_init = None
+    static_js_init = 'QualtricsSurveyView'
     template = 'view.html'
 
     def provide_context(self, context):  # pragma: no cover
@@ -33,7 +41,7 @@ class XBlockFragmentBuilderMixin:
         context = context or {}
         context = dict(context)
         return context
-
+            
     @XBlock.supports('multi_device')
     def student_view(self, context=None):
         """
@@ -51,6 +59,27 @@ class XBlockFragmentBuilderMixin:
             js=static_js,
             js_init=js_init,
         )
+    
+        # Create Qualtrics event subscription callback to specific XBlock event handler on load of the student view.
+        # Checking if the survey has subscription for event callback and stores and entry in the database.
+        course_id = getattr(self.runtime, 'course_id', None)
+        try:
+            qualtrics_subscription = QualtricsSubscriptions.objects.get(course_id=course_id, usage_key=self.location)
+        except QualtricsSubscriptions.DoesNotExist:
+            subscription_id = QualtricsApi().create_event_subscription(self)
+
+            if subscription_id is not None:
+                qualtrics_subscription = QualtricsSubscriptions(course_id=course_id, usage_key=self.location, subscription_id=subscription_id)
+                qualtrics_subscription.save()                
+            else:
+                LOGGER.error(u"Could not locate a subscription id from Qualtrics API for course {} - XBlock location {}".format(course_id, self.location))
+                        
+        try:
+            survey_status = SurveyStatus.objects.get(usage_key=self.location, user_id=self.xmodule_runtime.user_id)
+        except SurveyStatus.DoesNotExist:
+            survey_status = SurveyStatus(usage_key=self.location, user_id=self.xmodule_runtime.user_id, status="incomplete")
+            survey_status.save()
+        
         return fragment
 
     def build_fragment(
@@ -64,6 +93,7 @@ class XBlockFragmentBuilderMixin:
         """
         Creates a fragment for display.
         """
+        
         context = context or {}
         css = css or []
         js = js or []
