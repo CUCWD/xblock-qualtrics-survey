@@ -5,7 +5,9 @@ from xblockutils.resources import ResourceLoader
 from xblockutils.studio_editable import StudioEditableXBlockMixin
 
 from .mixins.fragment import XBlockFragmentBuilderMixin
-
+from web_fragments.fragment import Fragment
+import logging
+LOGGER = logging.getLogger(__name__)
 #xmodule.course_module import CourseFields
 class QualtricsSurveyViewMixin(
         XBlockFragmentBuilderMixin,
@@ -22,16 +24,14 @@ class QualtricsSurveyViewMixin(
         """
         Build a context dictionary to render the student view
         """
+
         context = context or {}
         context = dict(context)
-        # param_name = self.param_name
-        # anon_user_id = self.get_anon_id()
-        # user_id_string = ''
-        # if param_name:
-        #     user_id_string = ("{param_name}={anon_user_id}").format(
-        #         param_name=param_name,
-        #         anon_user_id=anon_user_id,
-        #     )
+    
+        anon_user_id = self.get_anon_id()
+        anon_user_id_string = ("anonymous_user_id={anon_user_id}").format(
+            anon_user_id=anon_user_id,
+        )
         param_course_id = self.get_course_id()
         course_id_string = ("course_id={param_course_id}").format(
             param_course_id=param_course_id,
@@ -84,6 +84,8 @@ class QualtricsSurveyViewMixin(
         show_meta_information_string = ("display_meta={param_display_meta}").format(
             param_display_meta=param_display_meta,
         )
+        param_survey_completed = 'The survey is done' if self.survey_completed else 'Please continue to finish the survey'
+
         context.update({
             'survey_id': self.survey_id,
             'your_university': self.your_university,
@@ -104,6 +106,11 @@ class QualtricsSurveyViewMixin(
             'show_simulation_exists_string': show_simulation_exists_string,
             'show_meta_information_string': show_meta_information_string,
             'message': self.message,
+            'survey_completed': param_survey_completed,
+            'anon_user_id_string': anon_user_id_string,
+            'earned_score': self.score.raw_earned*self.weight if self.score is not None else 0,
+            'max_score': self.max_score,
+            'is_graded': self.get_is_graded,
         })
         
         return context
