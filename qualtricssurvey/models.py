@@ -4,14 +4,68 @@ Handle data access logic for the XBlock
 
 import six
 from datetime import datetime
-
+from xblock.scorable import ScorableXBlockMixin, Score
 from django.utils.translation import ugettext_lazy as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from xblock.core import XBlock
 from xblock.fields import Scope
-from xblock.fields import Boolean, List, String
-
+from xblock.fields import Boolean, List, String, Float
 from opaque_keys.edx.keys import UsageKey
 from xmodule.modulestore.django import modulestore
+from .mixins.handlers import QualtricsHandlersMixin
+import requests
+import json
+from collections import namedtuple
+from .platform_dependencies import user_by_anonymous_id
+from django.db import models
+from opaque_keys.edx.django.models import CourseKeyField
+from opaque_keys.edx.django.models import UsageKeyField
+from django.conf import settings
+# from requests.packages.urllib3.exceptions import HTTPError
+
+from xmodule.fields import ScoreField
+
+import logging
+LOGGER = logging.getLogger(__name__)
+
+from .qualtrics_api import QualtricsApi
+
+class QualtricsSubscriptions(models.Model):
+    """
+    Defines a way to see if a given Qualtrics subscription_id is tied to a course_id, XBlock location id
+    """
+    class Meta:
+        # Since QualtricsSurvey isn't added to INSTALLED_APPS until it's imported,
+        # specify the app_label here.
+        app_label = 'qualtricssurvey'
+        unique_together = (
+            ('course_id', 'usage_key', 'subscription_id'),
+        )
+        managed = True
+
+    course_id = CourseKeyField(max_length=255, db_index=True)
+    usage_key = UsageKeyField(max_length=255, db_index=True, help_text=_(u'The course block identifier.'))
+    subscription_id = models.CharField(max_length=50, db_index=True, help_text=_(u'The subscription id from Qualtrics.'))
+    
+    # new entry - we are checking because we want to only have one callback for the xblock location
+   
+class SurveyStatus(models.Model):
+    """
+    Defines a way to see if a given Qualtrics survey has been completed and graded
+    """
+    class Meta:
+        # Since QualtricsSurvey isn't added to INSTALLED_APPS until it's imported,
+        # specify the app_label here.
+        app_label = 'qualtricssurvey'
+        unique_together = (
+            ('usage_key', 'user_id'),
+        )
+        managed = True
+
+    user_id = models.IntegerField(db_index=True)
+    usage_key = UsageKeyField(max_length=255, db_index=True, primary_key = True, help_text=_(u'The course block identifier.'))
+    status = models.CharField(max_length = 10, db_index=True, help_text=_(u'The current completion status of the survey '))
+    # new entry - we are checking because we want to only have one callback for the xblock location
 
 class CourseDetailsXBlockMixin(object):
     """
@@ -181,10 +235,11 @@ class CourseDetailsXBlockMixin(object):
         institution, instructors, term = self._get_context_course_advanced_settings(src_block)
         return term
 
-class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
+class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin):
     """
     Handle data access for XBlock instances
     """
+    survey_completed = False
 
     editable_fields = [
         'display_name',
@@ -205,6 +260,7 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         'course_instructors_override',
         'show_simulation_exists',
         'show_meta_information',
+        'weight'
     ]
     course_id_override = String(
         display_name=_('Course Identifier:'),
@@ -353,16 +409,41 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         help=_('This is the name of your university.'),
     )
 
+    weight = Float(
+        display_name=_("Problem Weight"),
+        default=0,
+        help=_("Defines the number of points each problem is worth. "
+               "If the value is not set, each response field in the problem is worth one point."),
+        values={"min": 0, "step": .1},
+        scope=Scope.settings
+    )
+    score = ScoreField(
+        help=_("Dictionary with the current student score"), 
+        scope=Scope.user_state, 
+        enforce_type=False)
+    
+    has_score = True
+          
+    @property
+    def descriptor(self):
+        """
+        Returns this XBlock object.
+        This is for backwards compatibility with the XModule API.
+        Some LMS code still assumes a descriptor attribute on the XBlock object.
+        See courseware.module_render.rebind_noauth_module_to_user.
+        """
+        return self
+
     # pylint: disable=no-member
-    # def get_anon_id(self):
+    def get_anon_id(self):
     #     """
     #     Return an anonymous user id
     #     """
-    #     try:
-    #         user_id = self.xmodule_runtime.anonymous_student_id
-    #     except AttributeError:
-    #         user_id = -1
-    #     return user_id
+         try:
+            user_id = self.xmodule_runtime.anonymous_student_id
+         except AttributeError:
+             user_id = -1
+         return user_id
 
     # pylint: disable=no-member
     def get_course_id(self):
@@ -483,6 +564,9 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         """
         return self.show_simulation_exists
 
+    def get_survey_id(self) :
+        return self.survey_id
+
 
     # pylint: disable=no-member
     def should_show_meta_information(self):
@@ -490,4 +574,118 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         Return True/False to indicate whether to show the "Show Qualtrics Survey Meta Information" information.
         """
         return self.show_meta_information
+              
+    def max_score(self):
+        """
+        Return the weight of the problem. This method is in the staff debug information
+        """
+        return self.weight
 
+    def get_is_graded(self):
+        try:
+            survey_status = SurveyStatus.objects.get(usage_key=self.location, user_id=self.xmodule_runtime.user_id).status
+            if (survey_status == "Complete"):
+                is_graded = "Graded"
+                return is_graded
+        except:
+            pass
+
+        is_graded = "Ungraded"   
+        return is_graded
+
+    def publish_grade(self):
+        grade_dict = {
+            'value': self.score.raw_earned,
+            'max_value': self.score.raw_possible,
+        }
+        self.runtime.publish(self, "grade", grade_dict)
+
+    @XBlock.json_handler
+    def get_survey_status(self, data, suffix=''):
+        try:
+            survey_status = SurveyStatus.objects.get(usage_key=self.location, user_id=self.xmodule_runtime.user_id).status         
+        except:
+            survey_status = "Incomplete"
+
+        # Prevents dividing by zero when computing weighted score for unweighted survey
+        if (self.score is not None and self.score.raw_possible != 0):
+            earned_score = (self.score.raw_earned/self.score.raw_possible) * self.weight
+        else: 
+            earned_score = 0
+
+        return {'survey_status': survey_status, 'max_score': self.weight, 'earned_score': earned_score}
+        
+
+    @QualtricsHandlersMixin.x_www_form_handler
+    def end_survey(self, data, suffix=''):  # pylint: disable=unused-argument
+        """
+        Called upon completion of the survey
+        """
+        
+        survey_id = data.get("SurveyID")
+        response_id = data.get("ResponseID")
+        status = data.get("Status")
+
+        response_survey = QualtricsApi().get_survey_response(survey_id, response_id)
+
+        if response_survey.ok and status == "Complete":
+            data_response_survey = response_survey.json()
+            result = data_response_survey["result"]
+            values = result["values"]
+
+            if not user_by_anonymous_id:
+                import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."
+                raise ImportError(import_error_anonymous_id)
+                response = {
+                    import_error_anonymous_id
+                }
+            else:
+                real_user = user_by_anonymous_id(values["anonymous_user_id"])
+                if (real_user is None):
+                    real_user_error = u"Cannot find `real_user` from the `anonymous_user_id`."
+                    LOGGER.error(real_user_error)
+                    raise ValueError(real_user_error)
+
+                # rebinds the user to the xblock so that a grade can be published for the correct user
+                self.system.rebind_noauth_module_to_user(self, real_user)
+
+                score = self.calculate_score()
+                self.set_score(score)
+                self.publish_grade()
+            
+                # Updates database survey status to complete
+                survey_status = SurveyStatus.objects.get(usage_key=self.location, user_id=real_user.id)
+                survey_status.status = 'Complete'
+                survey_status.save()
+
+        response = {
+            "Message": "Data processed from the Qualtrics Event Subscription API postback `surveyengine.completedResponse` event."
+        }
+        return response
+
+    def has_submitted_answer(self):
+        """
+        Currently unused.
+        """
+        return self.done
+
+    def set_score(self, score):
+        """
+        Sets the internal score for the problem. This is not derived directly
+        from the internal LCP in keeping with the ScorableXBlock spec.
+        """
+        self.score = score
+
+    def get_score(self):
+        """
+        Returns the score currently set on the block.
+        """
+        return self.score
+
+    def calculate_score(self):
+        """
+        Returns the score calculated from the current problem state.
+        """
+        # Awards full points for completing a survey
+        earned_score = 1
+        return Score(raw_earned=earned_score, raw_possible=1)
