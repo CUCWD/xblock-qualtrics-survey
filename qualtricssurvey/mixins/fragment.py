@@ -9,7 +9,7 @@ split into its own library.
 from django.template.context import Context
 from xblock.core import XBlock
 from xblock.fragment import Fragment
-from qualtricssurvey.models import SurveyStatus
+#from qualtricssurvey.models import SurveyStatus
 from django.conf import settings
 import json
 import requests
@@ -59,9 +59,10 @@ class XBlockFragmentBuilderMixin:
             js=static_js,
             js_init=js_init,
         )
-    
+       
         # Create Qualtrics event subscription callback to specific XBlock event handler on load of the student view.
         # Checking if the survey has subscription for event callback and stores and entry in the database.
+        
         course_id = getattr(self.runtime, 'course_id', None)
         try:
             qualtrics_subscription = QualtricsSubscriptions.objects.get(course_id=course_id, usage_key=self.location)
@@ -74,12 +75,11 @@ class XBlockFragmentBuilderMixin:
             else:
                 LOGGER.error(u"Could not locate a subscription id from Qualtrics API for course {} - XBlock location {}".format(course_id, self.location))
                         
-        try:
-            survey_status = SurveyStatus.objects.get(usage_key=self.location, user_id=self.xmodule_runtime.user_id)
-        except SurveyStatus.DoesNotExist:
-            survey_status = SurveyStatus(usage_key=self.location, user_id=self.xmodule_runtime.user_id, status="incomplete")
-            survey_status.save()
-        
+         
+        # Marks survey as incomplete for case that the learner's state was deleted
+        if (self.score is None):
+            self.is_answered = False
+       
         return fragment
 
     def build_fragment(
