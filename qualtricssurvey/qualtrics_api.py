@@ -38,11 +38,18 @@ class QualtricsApi():
             raise
 
     @lazy
+    def _api_auth_url(self):
+        """
+        Auth URL for all API requests.
+        """
+        return "{}/oauth2/token".format(settings.QUALTRICS_API_BASE_URL)
+
+    @lazy
     def _api_base_url(self):
         """
         Base URL for all API requests.
         """
-        return "{}/{}".format(settings.QUALTRICS_API_BASE_URL, settings.QUALTRICS_API_VERSION)
+        return "{}/API/{}".format(settings.QUALTRICS_API_BASE_URL, settings.QUALTRICS_API_VERSION)
 
     @lazy
     def _api_eventsubscriptions_base_url(self):
@@ -76,7 +83,6 @@ class QualtricsApi():
                 'Content-Type': 'application/json'
             }
             return headers
-        
         else:
             headers = {
                 "authorization": "bearer " + self.get_oauth_token(),
@@ -134,20 +140,20 @@ class QualtricsApi():
         if token_cached is not None:
             return token_cached
         else:
-            url = settings.QUALTRICS_OAUTH_URL
+            clientId = settings.QUALTRICS_API_CLIENT_ID
+            clientSecret = settings.QUALTRICS_API_CLIENT_SECRET
 
-            clientId = settings.QUALTRICS_CLIENT_ID
-            clientSecret = settings.QUALTRICS_CLIENT_SECRET
+            payload= {
+                'grant_type': 'client_credentials',
+                'scope': 'write:subscriptions read:survey_responses'
+                }
 
-            payload= {'grant_type': 'client_credentials','scope': 'write:subscriptions read:survey_responses'}
-
-            response = requests.post(url, auth=(clientId, clientSecret), data=payload)
+            response = requests.post(self._api_auth_url, auth=(clientId, clientSecret), data=payload)
             
             if response.ok:
                 token = response.json()['access_token']
                 self.token_cache.set('qualtrics_api_auth_token', token, getattr(settings, 'QUALTRICS_API_TOKEN_EXPIRATION', 3599))  #24h
                 return token
-
             else:
                 response.raise_for_status()
           
