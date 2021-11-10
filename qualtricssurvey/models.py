@@ -385,7 +385,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin):
     )
     your_university = String(
         display_name=_('Your University:'),
-        default='clemson',
+        default='clemson.ca1',
         scope=Scope.settings,
         help=_('This is the name of your university.'),
     )
