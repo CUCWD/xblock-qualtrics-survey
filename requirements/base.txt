@@ -9,7 +9,7 @@ django==2.2.17            # via -c requirements/constraints.txt, -r requirements
 fs==2.4.11                # via xblock
 lxml==4.6.2               # via xblock
 mako==1.1.3               # via xblock-utils
-markupsafe==1.1.1         # via mako, xblock
+markupsafe==2.0.1         # via mako, xblock
 python-dateutil==2.8.1    # via xblock
 pytz==2020.4              # via django, fs, xblock
 pyyaml==5.3.1             # via xblock
