@@ -71,7 +71,7 @@ class QualtricsApi():
         Get the prefix for the site URL-- protocol.
         """
         scheme = u"https" if settings.HTTPS == "on" else u"http"
-        return u'{}://{}'.format(scheme, settings.LMS_BASE)
+        return u'{}://{}'.format(scheme, settings.LMS_MFE_BASE)
 
     def get_headers(self):
         # Headers to send along with the request-- used for authentication
@@ -94,7 +94,7 @@ class QualtricsApi():
         """
         Create event subscription callback on survey complete to XBlock event handler endpoint.
         """
-        
+        import pdb; pdb.set_trace()
         course_id = getattr(xblock.runtime, 'course_id', None)
         
         headers = self.get_headers()
