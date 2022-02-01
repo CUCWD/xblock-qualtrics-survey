@@ -585,8 +585,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin):
         Called upon completion of the survey
         """
 
-        import pdb; pdb.set_trace()
-    
         survey_id = data.get("SurveyID")
         response_id = data.get("ResponseID")
         status = data.get("Status")
@@ -597,8 +595,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin):
             data_response_survey = response_survey.json()
             result = data_response_survey["result"]
             values = result["values"]
-
-            pdb.set_trace()
 
             if not user_by_anonymous_id:
                 import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."
@@ -616,7 +612,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin):
                 # rebinds the user to the xblock so that a grade can be published for the correct user
                 self.system.rebind_noauth_module_to_user(self, real_user)
 
-                pdb.set_trace()
                 score = self.calculate_score()
                 self.set_score(score)
                 self.publish_grade()
