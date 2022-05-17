@@ -18,17 +18,18 @@ class QualtricsApi():
         if self.api_ver != 'v1':
             # initialize backend token cache
             self.token_cache = caches[settings.QUALTRICS_API_TOKEN_CACHE]
-           
+
     def _log_if_raised(self, response, data):
         """
         Log server response if there was an error.
         """
-        
+
         try:
             response.raise_for_status()
         except HTTPError:
             LOGGER.error(
-                u"Encountered an error when retrieving data from Qualtrics. Response sent from %r with headers %r.\n"
+                u"Encountered an error when retrieving data from Qualtrics. Response sent from "
+                u"%r with headers %r.\n"
                 u"and data values %r\n"
                 u"Response status was %s.\n%s",
                 response.request.url, response.request.headers,
@@ -42,6 +43,7 @@ class QualtricsApi():
         """
         Auth URL for all API requests.
         """
+
         return "{}/oauth2/token".format(settings.QUALTRICS_API_BASE_URL)
 
     @lazy
@@ -49,6 +51,7 @@ class QualtricsApi():
         """
         Base URL for all API requests.
         """
+
         return "{}/API/{}".format(settings.QUALTRICS_API_BASE_URL, settings.QUALTRICS_API_VERSION)
 
     @lazy
@@ -56,6 +59,7 @@ class QualtricsApi():
         """
         Base URL for eventsubscriptions-specific requests.
         """
+
         return "{}/{}".format(self._api_base_url, "eventsubscriptions")
 
     @lazy
@@ -63,6 +67,7 @@ class QualtricsApi():
         """
         Base URL for surveys-specific requests.
         """
+
         return "{}/{}".format(self._api_base_url, "surveys")
 
     @lazy
@@ -70,11 +75,14 @@ class QualtricsApi():
         """
         Get the prefix for the site URL-- protocol.
         """
+
         scheme = u"https" if settings.HTTPS == "on" else u"http"
         return u'{}://{}'.format(scheme, settings.LMS_BASE)
 
     def get_headers(self):
-        # Headers to send along with the request-- used for authentication
+        """
+        Headers to send along with the request-- used for authentication
+        """
 
         # v1 is deprecated and will result in 404 error
         if settings.QUALTRICS_API_VERSION == 'v1':
@@ -135,20 +143,21 @@ class QualtricsApi():
         """
         Checks for valid auth token in cache and returns it, otherwise a new one is generated and saved to cache
         """
+
         token_cached = self.token_cache.get('qualtrics_api_auth_token')
 
         if token_cached is not None:
             return token_cached
         else:
-            clientId = settings.QUALTRICS_API_CLIENT_ID
-            clientSecret = settings.QUALTRICS_API_CLIENT_SECRET
+            client_id = settings.QUALTRICS_API_CLIENT_ID
+            client_secret = settings.QUALTRICS_API_CLIENT_SECRET
 
             payload= {
                 'grant_type': 'client_credentials',
                 'scope': 'write:subscriptions read:survey_responses'
                 }
 
-            response = requests.post(self._api_auth_url, auth=(clientId, clientSecret), data=payload)
+            response = requests.post(self._api_auth_url, auth=(client_id, client_secret), data=payload)
             
             if response.ok:
                 token = response.json()['access_token']
@@ -156,6 +165,3 @@ class QualtricsApi():
                 return token
             else:
                 response.raise_for_status()
-          
-
-    
