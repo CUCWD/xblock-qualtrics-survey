@@ -181,7 +181,69 @@ class CourseDetailsXBlockMixin(object):
         institution, instructors, term = self._get_context_course_advanced_settings(src_block)
         return term
 
-class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
+
+class UserDetailsXBlockMixin(object):
+    """
+    Handles all course related information from the platform.
+    """
+
+    @property
+    def get_anon_id(self):
+        """
+        Return an anonymous user id
+        """
+        try:
+            user_id = self.xmodule_runtime.anonymous_student_id
+        except AttributeError:
+            user_id = -1
+        return user_id
+
+    @property
+    def get_username(self):
+        """
+        Return the real user's username
+        """
+        try:
+            username = self.xmodule_runtime._services.get('user').get_current_user().opt_attrs['edx-platform.username']
+        except AttributeError:
+            username = ""
+        return username
+
+    @property
+    def get_fullname(self):
+        """
+        Return the real user's fullname
+        """
+        try:
+            user_fullname = self.xmodule_runtime._services.get('user').get_current_user().full_name
+        except AttributeError:
+            user_fullname = ""
+        return user_fullname
+
+    @property
+    def get_email(self):
+        """
+        Return the real user's email
+        """
+        try:
+            user_email = self.xmodule_runtime._services.get('user').get_current_user().emails[0]
+        except AttributeError:
+            user_email = ""
+        return user_email
+
+    @property
+    def get_user_is_staff(self):
+        """
+        Return whether the real user is staff member or not.
+        """
+        try:
+            user_is_staff = self.xmodule_runtime.user_is_staff
+        except AttributeError:
+            user_is_staff = False
+        return user_is_staff
+
+
+class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin):
     """
     Handle data access for XBlock instances
     """
@@ -203,6 +265,7 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         'course_end_date_override',
         'course_institution_override',
         'course_instructors_override',
+        'forward_platform_user_pii',
         'show_simulation_exists',
         'show_meta_information',
     ]
@@ -322,6 +385,13 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
     #         'If blank, User ID is ommitted from the url.'
     #     ),
     # )
+    forward_platform_user_pii = Boolean(
+        display_name=_("Forward Platform User PII to Qualtrics"),
+        help=_("Sends personal information (username, full name, email) about the platform user account to Qualtrics. "
+               "This is disabled by default."),
+        scope=Scope.settings,
+        default=False
+    )
     show_simulation_exists = Boolean(
         display_name=_("Simulation Exists"),
         help=_("Displays simulation questions from the survey when the query parameters is passed. "
@@ -477,12 +547,17 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin):
         """
         return self.module_name
 
+    def should_forward_platform_user_pii(self):
+        """
+        Return True/False to indicate whether to forward the "Forward Platform User PII to Qualtrics" information.
+        """
+        return self.forward_platform_user_pii
+
     def should_show_simulation_exists(self):
         """
         Return True/False to indicate whether to show the "Simulation Exists" questions.
         """
         return self.show_simulation_exists
-
 
     # pylint: disable=no-member
     def should_show_meta_information(self):
