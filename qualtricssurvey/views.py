@@ -76,6 +76,17 @@ class QualtricsSurveyViewMixin(
         course_module_name_string = ("module_name={param_course_module_name}").format(
             param_course_module_name=param_course_module_name,
         )
+        
+        forward_platform_user_pii_string = ""
+        if self.should_forward_platform_user_pii():
+            forward_platform_user_pii_string = (
+                "platform_username={param_platform_username}&platform_fullname={param_platform_fullname}&platform_email={param_platform_email}&platform_user_is_staff={param_platform_user_is_staff}").format(
+                    param_platform_username=self.get_username,
+                    param_platform_fullname=self.get_fullname,
+                    param_platform_email=self.get_email,
+                    param_platform_user_is_staff = self.get_user_is_staff
+            )
+
         param_display_simulation_exists = '1' if self.should_show_simulation_exists() else '0'
         show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
             param_display_simulation_exists=param_display_simulation_exists,
@@ -103,6 +114,7 @@ class QualtricsSurveyViewMixin(
             'course_instructor_string': course_instructor_string.strip(),
             'course_module_name_string': course_module_name_string.strip(),
             #'course_module_id_string': self.module_id.strip(),
+            'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
