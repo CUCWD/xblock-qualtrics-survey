@@ -71,6 +71,14 @@ class QualtricsApi():
         return "{}/{}".format(self._api_base_url, "surveys")
 
     @lazy
+    def _api_survey_definitions_base_url(self):
+        """
+        Base URL for surveys-definitions requests.
+        """
+
+        return "{}/{}".format(self._api_base_url, "survey-definitions")
+
+    @lazy
     def _site_prefix(self):
         """
         Get the prefix for the site URL-- protocol.
@@ -120,9 +128,28 @@ class QualtricsApi():
             subscription_id = response.json()['result']['id']
             return subscription_id
         
-        LOGGER.error(u"Could not create a subscription from Qualtrics API for course {} - XBlock location {}".format(course_id, xblock.location))
+        LOGGER.error(u"QualtricsApi – Could not create a subscription from Qualtrics API for course {} - XBlock location {}".format(course_id, xblock.location))
 
         return None
+
+    def get_survey_definition_questions(self, survey_id):
+        """
+        Retrieve survey definition questions
+        https://api.qualtrics.com/957c5f8a4604b-get-questions
+        """
+
+        url = "{}/{}/questions".format(self._api_survey_definitions_base_url, survey_id)
+
+        payload = {}
+        headers = self.get_headers()
+       
+        try:
+            response_survey_questions = requests.request("GET", url, headers=headers, data=payload)
+            self._log_if_raised(response_survey_questions, payload)
+        except:
+            LOGGER.error(u"QualtricsApi – Issue with get_survey_definition_questions() – Survey ID ({})".format(survey_id)) 
+
+        return response_survey_questions
 
     def get_survey_response(self, survey_id, response_id):
         """
@@ -134,8 +161,11 @@ class QualtricsApi():
         payload = {}
         headers = self.get_headers()
        
-        response_survey = requests.request("GET", url, headers=headers, data=payload)
-        self._log_if_raised(response_survey, payload)
+        try:
+            response_survey = requests.request("GET", url, headers=headers, data=payload)
+            self._log_if_raised(response_survey, payload)
+        except:
+            LOGGER.error(u"QualtricsApi – Issue with get_survey_response() – Survey ID ({}) – Response ID ({})".format(survey_id, response_id)) 
 
         return response_survey
 
@@ -154,7 +184,7 @@ class QualtricsApi():
 
             payload= {
                 'grant_type': 'client_credentials',
-                'scope': 'write:subscriptions read:survey_responses'
+                'scope': 'write:subscriptions read:survey_responses read:surveys'
                 }
 
             response = requests.post(self._api_auth_url, auth=(client_id, client_secret), data=payload)
