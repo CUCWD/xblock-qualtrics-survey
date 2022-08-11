@@ -302,6 +302,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         'course_institution_override',
         'course_instructors_override',
         'forward_platform_user_pii',
+        'send_qualtrics_score_to_platform',
         'show_simulation_exists',
         'show_meta_information',
         'weight'
@@ -429,6 +430,13 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         scope=Scope.settings,
         default=False
     )
+    send_qualtrics_score_to_platform = Boolean(
+        display_name=_("Send Qualtrics Score to Platform"),
+        help=_("When enabled this sends the qualtrics score value from learner's response."
+               "This is disabled by default. Only enable this when scoring is setup in the survey"),
+        scope=Scope.settings,
+        default=False
+    )
     show_simulation_exists = Boolean(
         display_name=_("Simulation Exists"),
         help=_("Displays simulation questions from the survey when the query parameters is passed. "
@@ -462,9 +470,10 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
     weight = Float(
         display_name=_("Problem Weight"),
-        default=0,
         help=_("Defines the number of points each problem is worth. "
-               "If the value is not set, each response field in the problem is worth one point."),
+               "If the value is not set, each response field in the problem is worth one point. "
+               "Whenever 'Send Qualtrics Score to Platform' is set this weight is not used but rather Qualtrics defines the weight based on score settings."
+        ),
         values={"min": 0, "step": .1},
         scope=Scope.settings
     )
@@ -621,6 +630,12 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         """
         return self.forward_platform_user_pii
 
+    def should_send_qualtrics_score_to_platform(self):
+        """
+        Return True/False to indicate whether to "Send Qualtrics Score to Platform" information.
+        """
+        return self.send_qualtrics_score_to_platform
+
     def should_show_simulation_exists(self):
         """
         Return True/False to indicate whether to show the "Simulation Exists" questions.
@@ -630,31 +645,60 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
     def get_survey_id(self) :
         return self.survey_id
 
-
     # pylint: disable=no-member
     def should_show_meta_information(self):
         """
         Return True/False to indicate whether to show the "Show Qualtrics Survey Meta Information" information.
         """
         return self.show_meta_information
-              
+    
     def max_score(self):
         """
         Return the weight of the problem. This method is in the staff debug information
         """
-        return self.weight
+
+        # Exit early because we already have a score and we don't want to pull from the
+        # defaults set in the rest of this method. If we don't do this check and the max score 
+        # changes either through weight or Qualtrics score (adding/removing new problems) then
+        # the previous user experience could change with `raw_possible`.
+        if self.score is not None:
+            return self.score.raw_possible
+
+        raw_possible = 0.0
+
+        if self.should_send_qualtrics_score_to_platform():
+            # Find score values from Qualtrics
+
+            # Get the number of questions from the Qualtrics Survey Definition Questions
+            # endpoint and find all questions with score value set.
+            response_survey_questions = QualtricsApi().get_survey_definition_questions(self.get_survey_id())
+
+            if response_survey_questions.ok:
+                data_response_survey_questions = response_survey_questions.json()
+                result = data_response_survey_questions["result"]
+                elements = result["elements"]
+
+                for question in elements:
+                    if question["GradingData"]:
+                        raw_possible += float(question["GradingData"][0]["Grades"][settings.QUALTRICS_SCORE_ID])
+        else:
+            # Awards full points for completing a survey (default)
+            raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
+
+        return raw_possible
 
     @XBlock.json_handler
     def get_survey_status(self, data, suffix=''):
         # Prevents dividing by zero when computing weighted score for unweighted survey
-        if (self.score is not None and self.score.raw_possible != 0):
-            earned_score = (self.score.raw_earned/self.score.raw_possible) * self.weight
-        else: 
-            earned_score = 0
 
-        return {'is_answered': self.is_answered, 'max_score': self.weight, 'earned_score': earned_score}
+        if self.score:
+            raw_earned = self.score.raw_earned
+            raw_possible = self.score.raw_possible
+        else:
+            raw_earned = raw_possible = 0
         
-
+        return {'is_answered': self.is_answered, 'possible_score': raw_possible, 'earned_score': raw_earned}
+        
     @QualtricsHandlersMixin.x_www_form_handler
     def end_survey(self, data, suffix=''):  # pylint: disable=unused-argument
         """
@@ -679,21 +723,36 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
                     import_error_anonymous_id
                 }
             else:
-                real_user = user_by_anonymous_id(values["anonymous_user_id"])
-                if (real_user is None):
-                    real_user_error = u"Cannot find `real_user` from the `anonymous_user_id`."
-                    LOGGER.error(real_user_error)
-                    raise ValueError(real_user_error)
+                # Only update learner's score if we have an `anonymous_user_id`` to
+                # map to a `real` user. This `anonymous_user_id` was passed to the
+                # Qualtrics survey as query parameter and was meant to prevent 
+                # external system (e.g. Qualtrics) from keeping PII information for
+                # a platform user account. Since then we have created an component
+                # option to `Forward Platform User PII to Qualtrics` which does send
+                # PII information over to Qualtrics which was a request from the
+                # research team.
+                if 'platform_anonymous_user_id' in values:
+                    real_user = user_by_anonymous_id(values["platform_anonymous_user_id"])
+                    if (real_user is None):
+                        real_user_error = u"Cannot find `real_user` from the `platform_anonymous_user_id`."
+                        LOGGER.error(real_user_error)
+                        raise ValueError(real_user_error)
 
-                # rebinds the user to the xblock so that a grade can be published for the correct user
-                self.system.rebind_noauth_module_to_user(self, real_user)
+                    # rebinds the user to the xblock so that a grade can be published for the correct user
+                    self.system.rebind_noauth_module_to_user(self, real_user)
 
-                score = self.calculate_score()
-                self.set_score(score)
-                self.publish_grade()
-            
-                # Updates database survey status to complete
-                self.is_answered = True
+                    score = self.calculate_score(values)
+                    self.set_score(score)
+                    self.publish_grade()
+                
+                    # Updates database survey status to complete
+                    self.is_answered = True
+                else:
+                    LOGGER.warning(
+                        "Could not update the learner's score because the"
+                        "`platform_anonymous_user_id` value was not found in the"
+                        "Qualtrics survey response."
+                    )
 
         response = {
             "Message": "Data processed from the Qualtrics Event Subscription API postback `surveyengine.completedResponse` event."
@@ -701,11 +760,17 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         return response
 
     def publish_grade(self):
-        grade_dict = {
-            'value': self.score.raw_earned,
-            'max_value': self.score.raw_possible,
-        }
-        self.runtime.publish(self, "grade", grade_dict)
+        """
+        Update the learner's course score for this Qualtrics component so the
+        grade is reflected on the gradebook.
+        """
+
+        if self.score:
+            grade_dict = {
+                'value': self.score.raw_earned,
+                'max_value': self.score.raw_possible,
+            }
+            self.runtime.publish(self, "grade", grade_dict)
 
     def has_submitted_answer(self):
         return self.is_answered
@@ -721,12 +786,22 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         """
         Returns the score currently set on the block.
         """
-        return self.score
+        return (self.score if self.score else None)
 
-    def calculate_score(self):
+    def calculate_score(self, values):
         """
         Returns the score calculated from the current problem state.
+        This varies based on the XBlock setting for `Send Qualtrics Score to Platform`.
         """
-        # Awards full points for completing a survey
-        earned_score = 1
-        return Score(raw_earned=earned_score, raw_possible=1)
+        raw_earned = 0.0
+        raw_possible = self.max_score()
+
+        if self.should_send_qualtrics_score_to_platform():
+            # Find score values from Qualtrics
+            if values is not None:
+                raw_earned = float(values[settings.QUALTRICS_SCORE_ID])
+        else:
+            # Awards full points for completing a survey (default)
+            raw_earned = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
+
+        return Score(raw_earned=raw_earned, raw_possible=raw_possible)

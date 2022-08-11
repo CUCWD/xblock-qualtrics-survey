@@ -22,7 +22,7 @@ function QualtricsSurveyView(runtime, element) {
   // var myElement = $element.find('.myElement');
   
   var earned_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .earned_score')
-  var max_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .max_score')
+  var possible_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .possible_score')
   var status_html = $('.qualtricssurvey_block .qualtrics_message .grade .status')
   var graded_html = $('.qualtricssurvey_block .qualtrics_message .grade .is_graded')
   
@@ -40,7 +40,7 @@ function QualtricsSurveyView(runtime, element) {
           success: function (data) {
             if (data.is_answered == true) {
               $element.find(earned_score_html).text(data.earned_score.toFixed(1))
-              $element.find(max_score_html).text(data.max_score.toFixed(1))
+              $element.find(possible_score_html).text(data.possible_score.toFixed(1))
               $element.find(status_html).addClass("fa fa-check-circle graded")
             }
             else {

@@ -29,7 +29,7 @@ class QualtricsSurveyViewMixin(
         context = dict(context)
     
         anon_user_id = self.get_anon_id()
-        anon_user_id_string = ("anonymous_user_id={anon_user_id}").format(
+        anon_user_id_string = ("platform_anonymous_user_id={anon_user_id}").format(
             anon_user_id=anon_user_id,
         )
         param_course_id = self.get_course_id()
@@ -120,8 +120,8 @@ class QualtricsSurveyViewMixin(
             'message': self.message,
             'survey_completed': param_survey_completed,
             'anon_user_id_string': anon_user_id_string,
-            'earned_score': self.score.raw_earned*self.weight if self.score is not None else 0,
-            'max_score': self.max_score,
+            'earned_score': self.score.raw_earned if self.score is not None else 0.0,
+            'possible_score': self.max_score(),
         })
         
         return context
