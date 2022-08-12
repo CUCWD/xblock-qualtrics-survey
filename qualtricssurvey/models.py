@@ -7,6 +7,7 @@ from datetime import datetime
 from xblock.scorable import ScorableXBlockMixin, Score
 from django.utils.translation import ugettext_lazy as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from xblock.core import XBlock
 from xblock.fields import Scope
 from xblock.fields import Boolean, List, String, Float
@@ -826,7 +827,10 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
                 for question in elements:
                     if question["GradingData"]:
-                        raw_possible += float(question["GradingData"][0]["Grades"][settings.QUALTRICS_SCORE_ID])
+                        score_id = configuration_helpers.get_value(
+                            "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
+                        )
+                        raw_possible += float(question["GradingData"][0]["Grades"][score_id])
         else:
             # Awards full points for completing a survey (default)
             raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
