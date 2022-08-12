@@ -32,7 +32,7 @@ class QualtricsSurveyViewMixin(
 
         context = context or {}
         context = dict(context)
-    
+
         anon_user_id = self.get_anon_id()
         anon_user_id_string = ("platform_anonymous_user_id={anon_user_id}").format(
             anon_user_id=anon_user_id,
@@ -92,6 +92,21 @@ class QualtricsSurveyViewMixin(
                     param_platform_user_is_staff = self.get_user_is_staff
             )
 
+        forward_platform_user_demographic_data_string = ""
+        if self.should_forward_platform_user_demographic_data():
+            forward_platform_user_demographic_data_string = (
+                "demographic_year_of_birth={param_demographic_year_of_birth}&demographic_gender={param_demographic_gender}&demographic_level_of_education_completed={param_demographic_level_of_education_completed}&demographic_country={param_demographic_country}&demographic_ethnicity={param_demographic_ethnicity}&demographic_employment_status={param_demographic_employment_status}&demographic_zipcode={param_demographic_zipcode}&demographic_enrolled_in_school={param_demographic_enrolled_in_school}&demographic_enrolled_in_school_type={param_demographic_enrolled_in_school_type}&demographic_local_community_living={param_demographic_local_community_living}").format(
+                    param_demographic_year_of_birth=self.get_user_year_of_birth,
+                    param_demographic_gender=self.get_user_gender, param_demographic_level_of_education_completed=self.get_user_level_of_education, 
+                    param_demographic_country=self.get_user_country,
+                    param_demographic_ethnicity=self.get_user_ethnicity,
+                    param_demographic_employment_status=self.get_user_employment_status,
+                    param_demographic_zipcode=self.get_user_zipcode,
+                    param_demographic_enrolled_in_school=self.get_user_enrolled_in_school,
+                    param_demographic_enrolled_in_school_type=self.get_user_enrolled_in_school_type,
+                    param_demographic_local_community_living=self.get_user_local_community_living
+            )
+
         param_display_simulation_exists = '1' if self.should_show_simulation_exists() else '0'
         show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
             param_display_simulation_exists=param_display_simulation_exists,
@@ -120,6 +135,8 @@ class QualtricsSurveyViewMixin(
             'course_module_name_string': course_module_name_string.strip(),
             #'course_module_id_string': self.module_id.strip(),
             'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
+            'forward_platform_user_demographic_data':
+            forward_platform_user_demographic_data_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
