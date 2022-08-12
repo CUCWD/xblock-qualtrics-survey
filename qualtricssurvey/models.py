@@ -22,9 +22,11 @@ from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.django.models import UsageKeyField
 from django.conf import settings
 from lms.djangoapps.grades import tasks
+from custom_reg_form.models import ExtraInfo
 # from requests.packages.urllib3.exceptions import HTTPError
 
 from xmodule.fields import ScoreField
+from common.djangoapps.student.models import get_user
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -278,7 +280,137 @@ class UserDetailsXBlockMixin(object):
         return user_is_staff
 
 
-class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, UserDetailsXBlockMixin):
+class UserDemographicsXBlockMixin(object):
+    """
+    Handles all user demographic related information from the platform.
+    """
+
+    def get_user_profile(self):
+        """
+        Return user profile
+        """
+        user, user_profile = get_user(self.xmodule_runtime._services.get('user').get_current_user().emails[0])
+        return user_profile
+
+    def get_user_extra_info(self):
+        user_id = self.get_user_profile().user_id
+        try:
+            extra_info = ExtraInfo.objects.get(user_id=user_id)
+        except:
+            extra_info = None
+        return extra_info
+
+    @property
+    def get_user_year_of_birth(self):
+        """
+        Return user year of birth information
+        """
+        try:
+            user_year_of_birth = self.get_user_profile().year_of_birth
+        except AttributeError:
+            user_year_of_birth = ''
+        return user_year_of_birth
+
+    @property
+    def get_user_gender(self):
+        """
+        Return user gender information
+        """
+        try:
+            user_gender = self.get_user_profile().gender_display
+        except AttributeError:
+            user_gender = ''
+        return user_gender
+
+    @property
+    def get_user_level_of_education(self):
+        """
+        Return user level of education information
+        """
+        try:
+            user_level_of_education = self.get_user_profile().level_of_education_display
+        except AttributeError:
+            user_level_of_education = ''
+        return user_level_of_education
+
+    @property
+    def get_user_country(self):
+        """
+        Return user level of education information
+        """
+        try:
+            user_country = self.get_user_profile().country
+        except AttributeError:
+            user_country = ''
+        return user_country
+
+    @property
+    def get_user_ethnicity(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_ethnicity = self.get_user_extra_info().ethnicity_display
+        except AttributeError:
+            user_ethnicity = 'error'
+        return user_ethnicity
+
+    @property
+    def get_user_employment_status(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_employment_status = self.get_user_extra_info().employment_status_display
+        except AttributeError:
+            user_employment_status = 'error'
+        return user_employment_status
+
+    @property
+    def get_user_zipcode(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_zipcode = self.get_user_extra_info().zipcode
+        except AttributeError:
+            user_zipcode = 'error'
+        return user_zipcode
+
+    @property
+    def get_user_enrolled_in_school(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_enrolled_in_school = self.get_user_extra_info().enrolled_in_school_display
+        except AttributeError:
+            user_enrolled_in_school = 'error'
+        return user_enrolled_in_school
+
+    @property
+    def get_user_enrolled_in_school_type(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_enrolled_in_school_type = self.get_user_extra_info().enrolled_in_school_type_display
+        except AttributeError:
+            user_enrolled_in_school_type = 'error'
+        return user_enrolled_in_school_type
+
+    @property
+    def get_user_local_community_living(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_local_community_living = self.get_user_extra_info().local_community_living_display
+        except AttributeError:
+            user_local_community_living = 'error'
+        return user_local_community_living
+
+class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, UserDetailsXBlockMixin, UserDemographicsXBlockMixin):
     """
     Handle data access for XBlock instances
     """
@@ -302,6 +434,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         'course_institution_override',
         'course_instructors_override',
         'forward_platform_user_pii',
+        'forward_platform_user_demographic_data',
         'send_qualtrics_score_to_platform',
         'show_simulation_exists',
         'show_meta_information',
@@ -426,6 +559,13 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
     forward_platform_user_pii = Boolean(
         display_name=_("Forward Platform User PII to Qualtrics"),
         help=_("Sends personal information (username, full name, email) about the platform user account to Qualtrics. "
+               "This is disabled by default."),
+        scope=Scope.settings,
+        default=False
+    )
+    forward_platform_user_demographic_data = Boolean(
+        display_name=_("Forward Platform User Demographic Data to Qualtrics"),
+        help=_("Sends personal demographic information (gender, level of education, etc) about the platform user account to Qualtrics. "
                "This is disabled by default."),
         scope=Scope.settings,
         default=False
@@ -623,6 +763,12 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         Return the module_name of the course where this XBlock is used.
         """
         return self.module_name
+
+    def should_forward_platform_user_demographic_data(self):
+        """
+        Return True/False to indicate whether to forward the "Forward Platform User Demographic Data to Qualtrics" information.
+        """
+        return self.forward_platform_user_demographic_data
 
     def should_forward_platform_user_pii(self):
         """
