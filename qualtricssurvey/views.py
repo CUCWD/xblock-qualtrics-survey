@@ -117,7 +117,6 @@ class QualtricsSurveyViewMixin(
             'course_instructor_string': course_instructor_string.strip(),
             'course_module_name_string': course_module_name_string.strip(),
             #'course_module_id_string': self.module_id.strip(),
-            'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
