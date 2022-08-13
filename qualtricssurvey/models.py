@@ -27,7 +27,7 @@ from custom_reg_form.models import ExtraInfo
 # from requests.packages.urllib3.exceptions import HTTPError
 
 from xmodule.fields import ScoreField
-from common.djangoapps.student.models import get_user
+from student.models import get_user
 
 import logging
 LOGGER = logging.getLogger(__name__)
@@ -789,9 +789,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         """
         return self.show_simulation_exists
 
-    def get_survey_id(self) :
-        return self.survey_id
-
     # pylint: disable=no-member
     def should_show_meta_information(self):
         """
@@ -799,6 +796,19 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         """
         return self.show_meta_information
     
+    def get_survey_id(self) :
+        return self.survey_id
+
+    def get_survey_score_id(self):
+        """
+        Locate the Qualtrics `Score Id` in site configuration or general settings.
+        """
+        score_id = configuration_helpers.get_value(
+                            "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
+                        )
+
+        return score_id
+
     def max_score(self):
         """
         Return the weight of the problem. This method is in the staff debug information
@@ -827,10 +837,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
                 for question in elements:
                     if question["GradingData"]:
-                        score_id = configuration_helpers.get_value(
-                            "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
-                        )
-                        raw_possible += float(question["GradingData"][0]["Grades"][score_id])
+                        raw_possible += float(question["GradingData"][0]["Grades"][self.get_survey_score_id()])
         else:
             # Awards full points for completing a survey (default)
             raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
@@ -949,7 +956,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
             if values is not None:
-                raw_earned = float(values[settings.QUALTRICS_SCORE_ID])
+                raw_earned = float(values[self.get_survey_score_id()])
         else:
             # Awards full points for completing a survey (default)
             raw_earned = (self.weight if self.weight is not None and self.weight > 0 else 1.0)

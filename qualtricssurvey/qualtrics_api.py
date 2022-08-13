@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.conf import settings
 from lazy import lazy
 from requests.packages.urllib3.exceptions import HTTPError
