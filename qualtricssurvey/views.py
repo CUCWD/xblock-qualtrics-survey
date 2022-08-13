@@ -76,10 +76,7 @@ class QualtricsSurveyViewMixin(
         course_module_name_string = ("module_name={param_course_module_name}").format(
             param_course_module_name=param_course_module_name,
         )
-        param_display_simulation_exists = '1' if self.should_forward_platform_user_pii() else '0'
-        show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
-            param_display_simulation_exists=param_display_simulation_exists,
-        )
+        
         forward_platform_user_pii_string = ""
         if self.should_forward_platform_user_pii():
             forward_platform_user_pii_string = (
@@ -117,6 +114,7 @@ class QualtricsSurveyViewMixin(
             'course_instructor_string': course_instructor_string.strip(),
             'course_module_name_string': course_module_name_string.strip(),
             #'course_module_id_string': self.module_id.strip(),
+            'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
