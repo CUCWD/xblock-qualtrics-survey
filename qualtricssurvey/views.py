@@ -5,7 +5,9 @@ from xblockutils.resources import ResourceLoader
 from xblockutils.studio_editable import StudioEditableXBlockMixin
 
 from .mixins.fragment import XBlockFragmentBuilderMixin
-
+from web_fragments.fragment import Fragment
+import logging
+LOGGER = logging.getLogger(__name__)
 #xmodule.course_module import CourseFields
 class QualtricsSurveyViewMixin(
         XBlockFragmentBuilderMixin,
@@ -22,16 +24,14 @@ class QualtricsSurveyViewMixin(
         """
         Build a context dictionary to render the student view
         """
+
         context = context or {}
         context = dict(context)
-        # param_name = self.param_name
-        # anon_user_id = self.get_anon_id()
-        # user_id_string = ''
-        # if param_name:
-        #     user_id_string = ("{param_name}={anon_user_id}").format(
-        #         param_name=param_name,
-        #         anon_user_id=anon_user_id,
-        #     )
+
+        anon_user_id = self.get_anon_id()
+        anon_user_id_string = ("platform_anonymous_user_id={anon_user_id}").format(
+            anon_user_id=anon_user_id,
+        )
         param_course_id = self.get_course_id()
         course_id_string = ("course_id={param_course_id}").format(
             param_course_id=param_course_id,
@@ -76,10 +76,7 @@ class QualtricsSurveyViewMixin(
         course_module_name_string = ("module_name={param_course_module_name}").format(
             param_course_module_name=param_course_module_name,
         )
-        param_display_simulation_exists = '1' if self.should_forward_platform_user_pii() else '0'
-        show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
-            param_display_simulation_exists=param_display_simulation_exists,
-        )
+        
         forward_platform_user_pii_string = ""
         if self.should_forward_platform_user_pii():
             forward_platform_user_pii_string = (
@@ -90,6 +87,21 @@ class QualtricsSurveyViewMixin(
                     param_platform_user_is_staff = self.get_user_is_staff
             )
 
+        forward_platform_user_demographic_data_string = ""
+        if self.should_forward_platform_user_demographic_data():
+            forward_platform_user_demographic_data_string = (
+                "demographic_year_of_birth={param_demographic_year_of_birth}&demographic_gender={param_demographic_gender}&demographic_level_of_education_completed={param_demographic_level_of_education_completed}&demographic_country={param_demographic_country}&demographic_ethnicity={param_demographic_ethnicity}&demographic_employment_status={param_demographic_employment_status}&demographic_zipcode={param_demographic_zipcode}&demographic_enrolled_in_school={param_demographic_enrolled_in_school}&demographic_enrolled_in_school_type={param_demographic_enrolled_in_school_type}&demographic_local_community_living={param_demographic_local_community_living}").format(
+                    param_demographic_year_of_birth=self.get_user_year_of_birth,
+                    param_demographic_gender=self.get_user_gender, param_demographic_level_of_education_completed=self.get_user_level_of_education, 
+                    param_demographic_country=self.get_user_country,
+                    param_demographic_ethnicity=self.get_user_ethnicity,
+                    param_demographic_employment_status=self.get_user_employment_status,
+                    param_demographic_zipcode=self.get_user_zipcode,
+                    param_demographic_enrolled_in_school=self.get_user_enrolled_in_school,
+                    param_demographic_enrolled_in_school_type=self.get_user_enrolled_in_school_type,
+                    param_demographic_local_community_living=self.get_user_local_community_living
+            )
+
         param_display_simulation_exists = '1' if self.should_show_simulation_exists() else '0'
         show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
             param_display_simulation_exists=param_display_simulation_exists,
@@ -98,6 +110,8 @@ class QualtricsSurveyViewMixin(
         show_meta_information_string = ("display_meta={param_display_meta}").format(
             param_display_meta=param_display_meta,
         )
+        param_survey_completed = 'The survey is done' if self.survey_completed else 'Please continue to finish the survey'
+
         context.update({
             'survey_id': self.survey_id.strip(),
             'your_university': self.your_university.strip(),
@@ -116,9 +130,15 @@ class QualtricsSurveyViewMixin(
             'course_module_name_string': course_module_name_string.strip(),
             #'course_module_id_string': self.module_id.strip(),
             'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
+            'forward_platform_user_demographic_data':
+            forward_platform_user_demographic_data_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
+            'survey_completed': param_survey_completed,
+            'anon_user_id_string': anon_user_id_string,
+            'earned_score': self.score.raw_earned if self.score is not None else 0.0,
+            'possible_score': self.max_score(),
         })
         
         return context

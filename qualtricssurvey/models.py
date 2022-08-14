@@ -4,14 +4,52 @@ Handle data access logic for the XBlock
 
 import six
 from datetime import datetime
-
+from xblock.scorable import ScorableXBlockMixin, Score
 from django.utils.translation import ugettext_lazy as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
+from xblock.core import XBlock
 from xblock.fields import Scope
-from xblock.fields import Boolean, List, String
-
+from xblock.fields import Boolean, List, String, Float
 from opaque_keys.edx.keys import UsageKey
 from xmodule.modulestore.django import modulestore
+from .mixins.handlers import QualtricsHandlersMixin
+import requests
+import json
+from collections import namedtuple
+from .platform_dependencies import user_by_anonymous_id
+from django.db import models
+from opaque_keys.edx.django.models import CourseKeyField
+from opaque_keys.edx.django.models import UsageKeyField
+from django.conf import settings
+from lms.djangoapps.grades import tasks
+from custom_reg_form.models import ExtraInfo
+# from requests.packages.urllib3.exceptions import HTTPError
+
+from xmodule.fields import ScoreField
+from student.models import get_user
+
+import logging
+LOGGER = logging.getLogger(__name__)
+
+from .qualtrics_api import QualtricsApi
+
+class QualtricsSubscriptions(models.Model):
+    """
+    Defines a way to see if a given Qualtrics subscription_id is tied to a course_id, XBlock location id
+    """
+    class Meta:
+        # Since QualtricsSurvey isn't added to INSTALLED_APPS until it's imported,
+        # specify the app_label here.
+        app_label = 'qualtricssurvey'
+        unique_together = (
+            ('course_id', 'usage_key', 'subscription_id'),
+        )
+        managed = True
+
+    course_id = CourseKeyField(max_length=255, db_index=True)
+    usage_key = UsageKeyField(max_length=255, db_index=True, help_text=_(u'The course block identifier.'))
+    subscription_id = models.CharField(max_length=50, db_index=True, help_text=_(u'The subscription id from Qualtrics.'))
 
 class CourseDetailsXBlockMixin(object):
     """
@@ -243,10 +281,141 @@ class UserDetailsXBlockMixin(object):
         return user_is_staff
 
 
-class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin):
+class UserDemographicsXBlockMixin(object):
+    """
+    Handles all user demographic related information from the platform.
+    """
+
+    def get_user_profile(self):
+        """
+        Return user profile
+        """
+        user, user_profile = get_user(self.xmodule_runtime._services.get('user').get_current_user().emails[0])
+        return user_profile
+
+    def get_user_extra_info(self):
+        user_id = self.get_user_profile().user_id
+        try:
+            extra_info = ExtraInfo.objects.get(user_id=user_id)
+        except:
+            extra_info = None
+        return extra_info
+
+    @property
+    def get_user_year_of_birth(self):
+        """
+        Return user year of birth information
+        """
+        try:
+            user_year_of_birth = self.get_user_profile().year_of_birth
+        except AttributeError:
+            user_year_of_birth = ''
+        return user_year_of_birth
+
+    @property
+    def get_user_gender(self):
+        """
+        Return user gender information
+        """
+        try:
+            user_gender = self.get_user_profile().gender_display
+        except AttributeError:
+            user_gender = ''
+        return user_gender
+
+    @property
+    def get_user_level_of_education(self):
+        """
+        Return user level of education information
+        """
+        try:
+            user_level_of_education = self.get_user_profile().level_of_education_display
+        except AttributeError:
+            user_level_of_education = ''
+        return user_level_of_education
+
+    @property
+    def get_user_country(self):
+        """
+        Return user level of education information
+        """
+        try:
+            user_country = self.get_user_profile().country
+        except AttributeError:
+            user_country = ''
+        return user_country
+
+    @property
+    def get_user_ethnicity(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_ethnicity = self.get_user_extra_info().ethnicity_display
+        except AttributeError:
+            user_ethnicity = 'error'
+        return user_ethnicity
+
+    @property
+    def get_user_employment_status(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_employment_status = self.get_user_extra_info().employment_status_display
+        except AttributeError:
+            user_employment_status = 'error'
+        return user_employment_status
+
+    @property
+    def get_user_zipcode(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_zipcode = self.get_user_extra_info().zipcode
+        except AttributeError:
+            user_zipcode = 'error'
+        return user_zipcode
+
+    @property
+    def get_user_enrolled_in_school(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_enrolled_in_school = self.get_user_extra_info().enrolled_in_school_display
+        except AttributeError:
+            user_enrolled_in_school = 'error'
+        return user_enrolled_in_school
+
+    @property
+    def get_user_enrolled_in_school_type(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_enrolled_in_school_type = self.get_user_extra_info().enrolled_in_school_type_display
+        except AttributeError:
+            user_enrolled_in_school_type = 'error'
+        return user_enrolled_in_school_type
+
+    @property
+    def get_user_local_community_living(self):
+        """
+        Return user ethnicity information
+        """
+        try:
+            user_local_community_living = self.get_user_extra_info().local_community_living_display
+        except AttributeError:
+            user_local_community_living = 'error'
+        return user_local_community_living
+
+class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, UserDetailsXBlockMixin, UserDemographicsXBlockMixin):
     """
     Handle data access for XBlock instances
     """
+    survey_completed = False
 
     editable_fields = [
         'display_name',
@@ -266,8 +435,11 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin
         'course_institution_override',
         'course_instructors_override',
         'forward_platform_user_pii',
+        'forward_platform_user_demographic_data',
+        'send_qualtrics_score_to_platform',
         'show_simulation_exists',
         'show_meta_information',
+        'weight'
     ]
     course_id_override = String(
         display_name=_('Course Identifier:'),
@@ -392,6 +564,20 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin
         scope=Scope.settings,
         default=False
     )
+    forward_platform_user_demographic_data = Boolean(
+        display_name=_("Forward Platform User Demographic Data to Qualtrics"),
+        help=_("Sends personal demographic information (gender, level of education, etc) about the platform user account to Qualtrics. "
+               "This is disabled by default."),
+        scope=Scope.settings,
+        default=False
+    )
+    send_qualtrics_score_to_platform = Boolean(
+        display_name=_("Send Qualtrics Score to Platform"),
+        help=_("When enabled this sends the qualtrics score value from learner's response."
+               "This is disabled by default. Only enable this when scoring is setup in the survey"),
+        scope=Scope.settings,
+        default=False
+    )
     show_simulation_exists = Boolean(
         display_name=_("Simulation Exists"),
         help=_("Displays simulation questions from the survey when the query parameters is passed. "
@@ -423,16 +609,48 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin
         help=_('This is the name of your university.'),
     )
 
+    weight = Float(
+        display_name=_("Problem Weight"),
+        help=_("Defines the number of points each problem is worth. "
+               "If the value is not set, each response field in the problem is worth one point. "
+               "Whenever 'Send Qualtrics Score to Platform' is set this weight is not used but rather Qualtrics defines the weight based on score settings."
+        ),
+        values={"min": 0, "step": .1},
+        scope=Scope.settings
+    )
+    score = ScoreField(
+        help=_("Dictionary with the current student score"), 
+        scope=Scope.user_state, 
+        enforce_type=False
+    )
+    is_answered = Boolean(
+        default=False,
+        scope=Scope.user_state,
+        help='Will be set to "True" if successfully answered'
+    )
+    
+    has_score = True
+          
+    @property
+    def descriptor(self):
+        """
+        Returns this XBlock object.
+        This is for backwards compatibility with the XModule API.
+        Some LMS code still assumes a descriptor attribute on the XBlock object.
+        See courseware.module_render.rebind_noauth_module_to_user.
+        """
+        return self
+
     # pylint: disable=no-member
-    # def get_anon_id(self):
+    def get_anon_id(self):
     #     """
     #     Return an anonymous user id
     #     """
-    #     try:
-    #         user_id = self.xmodule_runtime.anonymous_student_id
-    #     except AttributeError:
-    #         user_id = -1
-    #     return user_id
+         try:
+            user_id = self.xmodule_runtime.anonymous_student_id
+         except AttributeError:
+             user_id = -1
+         return user_id
 
     # pylint: disable=no-member
     def get_course_id(self):
@@ -547,11 +765,23 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin
         """
         return self.module_name
 
+    def should_forward_platform_user_demographic_data(self):
+        """
+        Return True/False to indicate whether to forward the "Forward Platform User Demographic Data to Qualtrics" information.
+        """
+        return self.forward_platform_user_demographic_data
+
     def should_forward_platform_user_pii(self):
         """
         Return True/False to indicate whether to forward the "Forward Platform User PII to Qualtrics" information.
         """
         return self.forward_platform_user_pii
+
+    def should_send_qualtrics_score_to_platform(self):
+        """
+        Return True/False to indicate whether to "Send Qualtrics Score to Platform" information.
+        """
+        return self.send_qualtrics_score_to_platform
 
     def should_show_simulation_exists(self):
         """
@@ -565,4 +795,170 @@ class QualtricsSurveyModelMixin(CourseDetailsXBlockMixin, UserDetailsXBlockMixin
         Return True/False to indicate whether to show the "Show Qualtrics Survey Meta Information" information.
         """
         return self.show_meta_information
+    
+    def get_survey_id(self) :
+        return self.survey_id
 
+    def get_survey_score_id(self):
+        """
+        Locate the Qualtrics `Score Id` in site configuration or general settings.
+        """
+        score_id = configuration_helpers.get_value(
+                            "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
+                        )
+
+        return score_id
+
+    def max_score(self):
+        """
+        Return the weight of the problem. This method is in the staff debug information
+        """
+
+        # Exit early because we already have a score and we don't want to pull from the
+        # defaults set in the rest of this method. If we don't do this check and the max score 
+        # changes either through weight or Qualtrics score (adding/removing new problems) then
+        # the previous user experience could change with `raw_possible`.
+        if self.score is not None:
+            return self.score.raw_possible
+
+        raw_possible = 0.0
+
+        if self.should_send_qualtrics_score_to_platform():
+            # Find score values from Qualtrics
+
+            # Get the number of questions from the Qualtrics Survey Definition Questions
+            # endpoint and find all questions with score value set.
+            response_survey_questions = QualtricsApi().get_survey_definition_questions(self.get_survey_id())
+
+            if response_survey_questions.ok:
+                data_response_survey_questions = response_survey_questions.json()
+                result = data_response_survey_questions["result"]
+                elements = result["elements"]
+
+                for question in elements:
+                    if question["GradingData"]:
+                        raw_possible += float(question["GradingData"][0]["Grades"][self.get_survey_score_id()])
+        else:
+            # Awards full points for completing a survey (default)
+            raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
+
+        return raw_possible
+
+    @XBlock.json_handler
+    def get_survey_status(self, data, suffix=''):
+        # Prevents dividing by zero when computing weighted score for unweighted survey
+
+        if self.score:
+            raw_earned = self.score.raw_earned
+            raw_possible = self.score.raw_possible
+        else:
+            raw_earned = raw_possible = 0
+        
+        return {'is_answered': self.is_answered, 'possible_score': raw_possible, 'earned_score': raw_earned}
+        
+    @QualtricsHandlersMixin.x_www_form_handler
+    def end_survey(self, data, suffix=''):  # pylint: disable=unused-argument
+        """
+        Called upon completion of the survey
+        """
+    
+        survey_id = data.get("SurveyID")
+        response_id = data.get("ResponseID")
+        status = data.get("Status")
+
+        response_survey = QualtricsApi().get_survey_response(survey_id, response_id)
+
+        if response_survey.ok and status == "Complete":
+            data_response_survey = response_survey.json()
+            result = data_response_survey["result"]
+            values = result["values"]
+
+            if not user_by_anonymous_id:
+                import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."
+                raise ImportError(import_error_anonymous_id)
+                response = {
+                    import_error_anonymous_id
+                }
+            else:
+                # Only update learner's score if we have an `anonymous_user_id`` to
+                # map to a `real` user. This `anonymous_user_id` was passed to the
+                # Qualtrics survey as query parameter and was meant to prevent 
+                # external system (e.g. Qualtrics) from keeping PII information for
+                # a platform user account. Since then we have created an component
+                # option to `Forward Platform User PII to Qualtrics` which does send
+                # PII information over to Qualtrics which was a request from the
+                # research team.
+                if 'platform_anonymous_user_id' in values:
+                    real_user = user_by_anonymous_id(values["platform_anonymous_user_id"])
+                    if (real_user is None):
+                        real_user_error = u"Cannot find `real_user` from the `platform_anonymous_user_id`."
+                        LOGGER.error(real_user_error)
+                        raise ValueError(real_user_error)
+
+                    # rebinds the user to the xblock so that a grade can be published for the correct user
+                    self.system.rebind_noauth_module_to_user(self, real_user)
+
+                    score = self.calculate_score(values)
+                    self.set_score(score)
+                    self.publish_grade()
+                
+                    # Updates database survey status to complete
+                    self.is_answered = True
+                else:
+                    LOGGER.warning(
+                        "Could not update the learner's score because the"
+                        "`platform_anonymous_user_id` value was not found in the"
+                        "Qualtrics survey response."
+                    )
+
+        response = {
+            "Message": "Data processed from the Qualtrics Event Subscription API postback `surveyengine.completedResponse` event."
+        }
+        return response
+
+    def publish_grade(self):
+        """
+        Update the learner's course score for this Qualtrics component so the
+        grade is reflected on the gradebook.
+        """
+
+        if self.score:
+            grade_dict = {
+                'value': self.score.raw_earned,
+                'max_value': self.score.raw_possible,
+            }
+            self.runtime.publish(self, "grade", grade_dict)
+
+    def has_submitted_answer(self):
+        return self.is_answered
+
+    def set_score(self, score):
+        """
+        Sets the internal score for the problem. This is not derived directly
+        from the internal LCP in keeping with the ScorableXBlock spec.
+        """
+        self.score = score
+
+    def get_score(self):
+        """
+        Returns the score currently set on the block.
+        """
+        return (self.score if self.score else None)
+
+    def calculate_score(self, values):
+        """
+        Returns the score calculated from the current problem state.
+        This varies based on the XBlock setting for `Send Qualtrics Score to Platform`.
+        """
+        raw_earned = 0.0
+        raw_possible = self.max_score()
+
+        if self.should_send_qualtrics_score_to_platform():
+            # Find score values from Qualtrics
+            if values is not None:
+                raw_earned = float(values[self.get_survey_score_id()])
+        else:
+            # Awards full points for completing a survey (default)
+            raw_earned = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
+
+        return Score(raw_earned=raw_earned, raw_possible=raw_possible)

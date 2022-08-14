@@ -1,3 +1,5 @@
+
+
 /* eslint-disable no-unused-vars */
 /**
  * Initialize the QualtricsSurvey student view
@@ -5,15 +7,49 @@
  * @param {Object} element - The containing DOM element for this instance of the XBlock
  * @returns {undefined} nothing
  */
+ 
 function QualtricsSurveyView(runtime, element) {
-    'use strict';
+  'use strict';
 
-    var $ = window.jQuery;
-    var $element = $(element);
-    /* eslint-enable no-unused-vars */
+  var $ = window.jQuery;
+  var $element = $(element);
+  
+  /* eslint-enable no-unused-vars */
+   
+    
+  // TODO: Put your logic here
+  // To find elements inside your XBlock, try:
+  // var myElement = $element.find('.myElement');
+  
+  var earned_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .earned_score')
+  var possible_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .possible_score')
+  var status_html = $('.qualtricssurvey_block .qualtrics_message .grade .status')
+  var graded_html = $('.qualtricssurvey_block .qualtrics_message .grade .is_graded')
+  
+  var handlerUrl = runtime.handlerUrl(element, 'get_survey_status');
 
-    // TODO: Put your logic here
+  var graded = $element.context.getAttribute('data-graded') === 'True' ? '(Graded) ' : '(Ungraded) ';
+  $element.find(graded_html).text(graded)
 
-    // To find elements inside your XBlock, try:
-    // var myElement = $element.find('.myElement');
-}
+    function updateView(event) {
+      setTimeout(function() { 
+        $.ajax({
+          method: "POST",
+          url: handlerUrl,
+          data: JSON.stringify({}),
+          success: function (data) {
+            if (data.is_answered == true) {
+              $element.find(earned_score_html).text(data.earned_score.toFixed(1))
+              $element.find(possible_score_html).text(data.possible_score.toFixed(1))
+              $element.find(status_html).addClass("fa fa-check-circle graded")
+            }
+            else {
+              updateView()
+            }
+          }
+        });
+      }, 3000)
+    }
+
+    updateView();
+  }
