@@ -18,8 +18,6 @@ from django.core import serializers
 import logging
 LOGGER = logging.getLogger(__name__)
 
-from ..models import QualtricsSubscriptions
-from ..qualtrics_api import QualtricsApi
 class XBlockFragmentBuilderMixin:
     """
     Create a default XBlock fragment builder
@@ -59,23 +57,7 @@ class XBlockFragmentBuilderMixin:
             css=static_css,
             js=static_js,
             js_init=js_init,
-        )
-       
-        # Create Qualtrics event subscription callback to specific XBlock event handler on load of the student view.
-        # Checking if the survey has subscription for event callback and stores and entry in the database.
-        
-        course_id = getattr(self.runtime, 'course_id', None)
-        try:
-            qualtrics_subscription = QualtricsSubscriptions.objects.get(course_id=course_id, usage_key=self.location)
-        except QualtricsSubscriptions.DoesNotExist:
-            subscription_id = QualtricsApi().create_event_subscription(self)
-
-            if subscription_id is not None:
-                qualtrics_subscription = QualtricsSubscriptions(course_id=course_id, usage_key=self.location, subscription_id=subscription_id)
-                qualtrics_subscription.save()                
-            else:
-                LOGGER.error(u"Could not locate a subscription id from Qualtrics API for course {} - XBlock location {}".format(course_id, self.location))
-                        
+        )                        
          
         # Marks survey as incomplete for case that the learner's state was deleted
         if (self.score is None):

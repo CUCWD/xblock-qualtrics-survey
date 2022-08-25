@@ -12,8 +12,10 @@ except ModuleNotFoundError:
 from .mixins.fragment import XBlockFragmentBuilderMixin
 from web_fragments.fragment import Fragment
 import logging
+
 LOGGER = logging.getLogger(__name__)
-#xmodule.course_module import CourseFields
+
+
 class QualtricsSurveyViewMixin(
         XBlockFragmentBuilderMixin,
         StudioEditableXBlockMixin,
@@ -36,6 +38,14 @@ class QualtricsSurveyViewMixin(
         anon_user_id = self.get_anon_id()
         anon_user_id_string = ("platform_anonymous_user_id={anon_user_id}").format(
             anon_user_id=anon_user_id,
+        )
+        param_lms_root_url = self.get_lms_root_url()
+        lms_root_url_string = ("lms_root_url={param_lms_root_url}").format(
+            param_lms_root_url=param_lms_root_url,
+        )
+        param_block_location_id = self.get_course_block_location_id()
+        block_location_id_string = ("block_location_id={param_block_location_id}").format(
+            param_block_location_id=param_block_location_id,
         )
         param_course_id = self.get_course_id()
         course_id_string = ("course_id={param_course_id}").format(
@@ -118,6 +128,8 @@ class QualtricsSurveyViewMixin(
         param_survey_completed = 'The survey is done' if self.survey_completed else 'Please continue to finish the survey'
 
         context.update({
+            'lms_root_url': lms_root_url_string.strip(),
+            'block_location_id': block_location_id_string.strip(),
             'survey_id': self.survey_id.strip(),
             'your_university': self.your_university.strip(),
             # 'link_text': self.link_text.strip(),
