@@ -13,9 +13,6 @@ from xblock.fields import Scope
 from xblock.fields import Boolean, List, String, Float
 from opaque_keys.edx.keys import UsageKey
 from xmodule.modulestore.django import modulestore
-from .mixins.handlers import QualtricsHandlersMixin
-import requests
-import json
 from collections import namedtuple
 from .platform_dependencies import user_by_anonymous_id
 from django.db import models
@@ -34,22 +31,6 @@ LOGGER = logging.getLogger(__name__)
 
 from .qualtrics_api import QualtricsApi
 
-class QualtricsSubscriptions(models.Model):
-    """
-    Defines a way to see if a given Qualtrics subscription_id is tied to a course_id, XBlock location id
-    """
-    class Meta:
-        # Since QualtricsSurvey isn't added to INSTALLED_APPS until it's imported,
-        # specify the app_label here.
-        app_label = 'qualtricssurvey'
-        unique_together = (
-            ('course_id', 'usage_key', 'subscription_id'),
-        )
-        managed = True
-
-    course_id = CourseKeyField(max_length=255, db_index=True)
-    usage_key = UsageKeyField(max_length=255, db_index=True, help_text=_(u'The course block identifier.'))
-    subscription_id = models.CharField(max_length=50, db_index=True, help_text=_(u'The subscription id from Qualtrics.'))
 
 class CourseDetailsXBlockMixin(object):
     """
@@ -653,6 +634,26 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
          return user_id
 
     # pylint: disable=no-member
+    def get_lms_root_url(self):
+        """
+        Return the lms root url of where the XBlock is used.
+        Encode return value for Qualtrics query parameter usage.
+        """
+        url = configuration_helpers.get_value(
+            "LMS_ROOT_URL", settings.LMS_ROOT_URL
+        )
+            
+        return six.text_type(six.moves.urllib.parse.quote(url))
+
+    # pylint: disable=no-member
+    def get_course_block_location_id(self):
+        """
+        Return the course block location id of the course component XBlock.
+        Encode return value for Qualtrics query parameter usage.
+        """
+        return six.text_type(six.moves.urllib.parse.quote(str(self.location)))
+
+    # pylint: disable=no-member
     def get_course_id(self):
         """
         Return the course_id of the course where this XBlock is used.
@@ -856,22 +857,19 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         
         return {'is_answered': self.is_answered, 'possible_score': raw_possible, 'earned_score': raw_earned}
         
-    @QualtricsHandlersMixin.x_www_form_handler
+    @XBlock.json_handler
     def end_survey(self, data, suffix=''):  # pylint: disable=unused-argument
         """
         Called upon completion of the survey
         """
     
-        survey_id = data.get("SurveyID")
-        response_id = data.get("ResponseID")
         status = data.get("Status")
 
-        response_survey = QualtricsApi().get_survey_response(survey_id, response_id)
-
-        if response_survey.ok and status == "Complete":
-            data_response_survey = response_survey.json()
-            result = data_response_survey["result"]
-            values = result["values"]
+        if status == 200:
+            # data_response_survey = response_survey.json()
+            # result = data_response_survey["result"]
+            results = data.get("Results")
+            values = results["values"]
 
             if not user_by_anonymous_id:
                 import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."

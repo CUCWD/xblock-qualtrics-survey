@@ -78,15 +78,6 @@ class QualtricsApi():
 
         return "{}/{}".format(self._api_base_url, "survey-definitions")
 
-    @lazy
-    def _site_prefix(self):
-        """
-        Get the prefix for the site URL-- protocol.
-        """
-
-        scheme = u"https" if settings.HTTPS == "on" else u"http"
-        return u'{}://{}'.format(scheme, settings.LMS_BASE)
-
     def get_headers(self):
         """
         Headers to send along with the request-- used for authentication
@@ -105,32 +96,6 @@ class QualtricsApi():
                 'Content-Type': 'application/json'
             }
             return headers
-
-    def create_event_subscription(self, xblock):
-        """
-        Create event subscription callback on survey complete to XBlock event handler endpoint.
-        """
-        
-        course_id = getattr(xblock.runtime, 'course_id', None)
-        
-        headers = self.get_headers()
-      
-        payload = json.dumps({
-            "topics": "surveyengine.completedResponse." + xblock.survey_id,
-            "publicationUrl": "{}/courses/{}/xblock/{}/handler_noauth/end_survey".format(
-                self._site_prefix, course_id, xblock.location
-            )
-        })
-        
-        response = requests.request("POST", self._api_eventsubscriptions_base_url, headers=headers, data=payload)
-        
-        if response.ok:
-            subscription_id = response.json()['result']['id']
-            return subscription_id
-        
-        LOGGER.error(u"QualtricsApi – Could not create a subscription from Qualtrics API for course {} - XBlock location {}".format(course_id, xblock.location))
-
-        return None
 
     def get_survey_definition_questions(self, survey_id):
         """
@@ -151,23 +116,25 @@ class QualtricsApi():
 
         return response_survey_questions
 
-    def get_survey_response(self, survey_id, response_id):
-        """
-        Retrieve survey response for learner.
-        """
+    # Deprecated: Handled within each Qualtrics survey's workflow configuration to call this endpoint.
+    # def get_survey_response(self, survey_id, response_id):
+    #     """
+    #     Retrieve survey response for learner.
+    #     Update: Handled within each Qualtrics survey's workflow configuration to call this endpoint.
+    #     """
         
-        url = "{}/{}/responses/{}".format(self._api_surveys_base_url, survey_id, response_id)
+    #     url = "{}/{}/responses/{}".format(self._api_surveys_base_url, survey_id, response_id)
 
-        payload = {}
-        headers = self.get_headers()
+    #     payload = {}
+    #     headers = self.get_headers()
        
-        try:
-            response_survey = requests.request("GET", url, headers=headers, data=payload)
-            self._log_if_raised(response_survey, payload)
-        except:
-            LOGGER.error(u"QualtricsApi – Issue with get_survey_response() – Survey ID ({}) – Response ID ({})".format(survey_id, response_id)) 
+    #     try:
+    #         response_survey = requests.request("GET", url, headers=headers, data=payload)
+    #         self._log_if_raised(response_survey, payload)
+    #     except:
+    #         LOGGER.error(u"QualtricsApi – Issue with get_survey_response() – Survey ID ({}) – Response ID ({})".format(survey_id, response_id)) 
 
-        return response_survey
+    #     return response_survey
 
     def get_oauth_token(self):
         """
