@@ -88,9 +88,9 @@ def package_data(pkg, roots):
     """
     data = []
     for root in roots:
-        for dirname, _, files in os.walk(os.path.join(pkg, root)):
+        for dirname, _, files in walk(path.join(pkg, root)):
             for fname in files:
-                data.append(os.path.relpath(os.path.join(dirname, fname), pkg))
+                data.append(path.relpath(path.join(dirname, fname), pkg))
 
     return {pkg: data}
 
