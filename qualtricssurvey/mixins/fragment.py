@@ -94,11 +94,11 @@ class XBlockFragmentBuilderMixin:
             if item.startswith('/'):
                 url = item
             else:
-                item = 'public/' + item
+                item = 'public/css/' + item
                 url = self.runtime.local_resource_url(self, item)
             fragment.add_css_url(url)
         for item in js:
-            item = 'public/' + item
+            item = 'public/js/' + item
             url = self.runtime.local_resource_url(self, item)
             fragment.add_javascript_url(url)
         if js_init:  # pragma: no cover
