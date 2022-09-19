@@ -1,4 +1,4 @@
-
+/* Javascript for Qualtrics Survey XBlock */
 
 /* eslint-disable no-unused-vars */
 /**
