@@ -16,6 +16,8 @@ import json
 import requests
 from django.core import serializers
 import logging
+from ..utils import resource_string
+
 LOGGER = logging.getLogger(__name__)
 
 class XBlockFragmentBuilderMixin:
@@ -83,7 +85,7 @@ class XBlockFragmentBuilderMixin:
         js = js or []
         rendered_template = ''
         if template:  # pragma: no cover
-            template = 'templates/' + template
+            template = 'static/html/' + template
             rendered_template = self.loader.render_django_template(
                 template,
                 context=Context(context),
@@ -93,14 +95,21 @@ class XBlockFragmentBuilderMixin:
         for item in css:
             if item.startswith('/'):
                 url = item
+                fragment.add_css_url(url)
             else:
-                item = 'public/css/' + item
-                url = self.runtime.local_resource_url(self, item)
-            fragment.add_css_url(url)
+                item = 'static/css/' + item
+                # Not calling `self.runtime.local_resource_url` because
+                # the resources would need to be in `/public` directory
+                fragment.add_css(resource_string(item))
         for item in js:
-            item = 'public/js/' + item
-            url = self.runtime.local_resource_url(self, item)
-            fragment.add_javascript_url(url)
+            if item.startswith('/'):
+                url = item
+                fragment.add_javascript_url(url)
+            else:
+                item = 'static/js/' + item
+                # Not calling `self.runtime.local_resource_url` because
+                # the resources would need to be in `/public` directory
+                fragment.add_javascript(resource_string(item))
         if js_init:  # pragma: no cover
             fragment.initialize_js(js_init)
         return fragment
