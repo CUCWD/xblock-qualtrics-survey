@@ -289,8 +289,8 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_year_of_birth = self.get_user_profile().year_of_birth
-        except AttributeError:
-            user_year_of_birth = ''
+        except (AttributeError, KeyError):
+            user_year_of_birth = 'error'
         return user_year_of_birth
 
     @property
@@ -300,8 +300,8 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_gender = self.get_user_profile().gender_display
-        except AttributeError:
-            user_gender = ''
+        except (AttributeError, KeyError):
+            user_gender = 'error'
         return user_gender
 
     @property
@@ -311,8 +311,8 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_level_of_education = self.get_user_profile().level_of_education_display
-        except AttributeError:
-            user_level_of_education = ''
+        except (AttributeError, KeyError):
+            user_level_of_education = 'error'
         return user_level_of_education
 
     @property
@@ -322,8 +322,8 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_country = self.get_user_profile().country
-        except AttributeError:
-            user_country = ''
+        except (AttributeError, KeyError):
+            user_country = 'error'
         return user_country
 
     @property
@@ -333,7 +333,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_ethnicity = self.get_user_extra_info().ethnicity_display
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_ethnicity = 'error'
         return user_ethnicity
 
@@ -344,7 +344,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_employment_status = self.get_user_extra_info().employment_status_display
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_employment_status = 'error'
         return user_employment_status
 
@@ -355,7 +355,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_zipcode = self.get_user_extra_info().zipcode
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_zipcode = 'error'
         return user_zipcode
 
@@ -366,7 +366,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_enrolled_in_school = self.get_user_extra_info().enrolled_in_school_display
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_enrolled_in_school = 'error'
         return user_enrolled_in_school
 
@@ -377,7 +377,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_enrolled_in_school_type = self.get_user_extra_info().enrolled_in_school_type_display
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_enrolled_in_school_type = 'error'
         return user_enrolled_in_school_type
 
@@ -388,7 +388,7 @@ class UserDemographicsXBlockMixin(object):
         """
         try:
             user_local_community_living = self.get_user_extra_info().local_community_living_display
-        except AttributeError:
+        except (AttributeError, KeyError):
             user_local_community_living = 'error'
         return user_local_community_living
 
