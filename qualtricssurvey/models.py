@@ -845,6 +845,11 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         return raw_possible
 
     @XBlock.json_handler
+    def is_graded(self, data, suffix=''):
+        # Returns if the survey is graded or not. Used on the Javscript file to loaded graded status.
+        return {'graded': self.graded}
+
+    @XBlock.json_handler
     def get_survey_status(self, data, suffix=''):
         # Prevents dividing by zero when computing weighted score for unweighted survey
 
