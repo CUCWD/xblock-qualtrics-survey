@@ -593,7 +593,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
     weight = Float(
         display_name=_("Problem Weight"),
         help=_("Defines the number of points each problem is worth. "
-               "If the value is not set, each response field in the problem is worth one point. "
+               "If the value is not set, each response field in the problem is worth zero points. "
                "Whenever 'Send Qualtrics Score to Platform' is set this weight is not used but rather Qualtrics defines the weight based on score settings."
         ),
         values={"min": 0, "step": .1},
@@ -841,9 +841,14 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
                         raw_possible += float(question["GradingData"][0]["Grades"][self.get_survey_score_id()])
         else:
             # Awards full points for completing a survey (default)
-            raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
+            raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 0.0)
 
         return raw_possible
+
+    @XBlock.json_handler
+    def is_graded(self, data, suffix=''):
+        # Returns if the survey is graded or not. Used on the Javscript file to loaded graded status.
+        return {'graded': self.graded}
 
     @XBlock.json_handler
     def get_survey_status(self, data, suffix=''):
