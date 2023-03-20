@@ -6,7 +6,7 @@ from xblockutils.studio_editable import StudioEditableXBlockMixin
 
 from .mixins.fragment import XBlockFragmentBuilderMixin
 
-
+#xmodule.course_module import CourseFields
 class QualtricsSurveyViewMixin(
         XBlockFragmentBuilderMixin,
         StudioEditableXBlockMixin,
@@ -56,13 +56,25 @@ class QualtricsSurveyViewMixin(
         course_term_string = ("course_term={param_course_term}").format(
             param_course_term=param_course_term,
         )
-        param_course_institution = ''
+        param_course_start_date = self.get_course_start_date()
+        course_start_date_string = ("course_start_date={param_course_start_date}").format(
+            param_course_start_date=param_course_start_date,
+        )
+        param_course_end_date = self.get_course_end_date()
+        course_end_date_string = ("course_end_date={param_course_end_date}").format(
+            param_course_end_date=param_course_end_date,
+        )
+        param_course_institution = self.get_course_institution()
         course_institution_string = ("course_institution={param_course_institution}").format(
             param_course_institution=param_course_institution,
         )
-        param_course_instructor = ''
-        course_instructor_string = ("course_instructor={param_course_instructor}").format(
-            param_course_instructor=param_course_instructor,
+        param_course_instructors = self.get_course_instructors()
+        course_instructor_string = ("course_instructor={param_course_instructors}").format(
+            param_course_instructors=param_course_instructors,
+        )
+        param_course_module_name = self.get_course_module_name()
+        course_module_name_string = ("module_name={param_course_module_name}").format(
+            param_course_module_name=param_course_module_name,
         )
         param_display_simulation_exists = '1' if self.should_show_simulation_exists() else '0'
         show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
@@ -73,7 +85,6 @@ class QualtricsSurveyViewMixin(
             param_display_meta=param_display_meta,
         )
         context.update({
-            'xblock_id': str(self.scope_ids.usage_id),
             'survey_id': self.survey_id,
             'your_university': self.your_university,
             # 'link_text': self.link_text,
@@ -84,10 +95,15 @@ class QualtricsSurveyViewMixin(
             'course_number_string': course_number_string,
             'course_run_string': course_run_string,
             'course_term_string': course_term_string,
+            'course_start_date_string': course_start_date_string,
+            'course_end_date_string': course_end_date_string,
             'course_institution_string': course_institution_string,
             'course_instructor_string': course_instructor_string,
+            'course_module_name_string': course_module_name_string,
+            #'course_module_id_string': self.module_id,
             'show_simulation_exists_string': show_simulation_exists_string,
             'show_meta_information_string': show_meta_information_string,
             'message': self.message,
         })
+        
         return context
