@@ -165,6 +165,12 @@ class QualtricsApi():
 
     #     return response_survey
 
+    def get_survey_score_id(self):
+        """
+        Locate the Qualtrics `Score Id` in configuration settings.
+        """
+        return self._get_api_config_setting('QUALTRICS_SCORE_ID')
+
     def get_oauth_token(self):
         """
         Checks for valid auth token in cache and returns it, otherwise a new one is generated and saved to cache
