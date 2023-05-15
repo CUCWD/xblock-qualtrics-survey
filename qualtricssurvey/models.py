@@ -804,11 +804,10 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         """
         Locate the Qualtrics `Score Id` in site configuration or general settings.
         """
-        score_id = configuration_helpers.get_value(
-                "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
-            )
-
-        return score_id
+        # score_id = configuration_helpers.get_value(
+        #         "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
+        #     )
+        return QualtricsApi(self.your_university).get_survey_score_id()
     
     def max_score(self):
         """
