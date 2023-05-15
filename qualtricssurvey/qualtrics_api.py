@@ -13,7 +13,24 @@ class QualtricsApi():
     Backend class for communicating with Qualtrics API (https://api.qualtrics.com/)
     """
 
-    def __init__(self):
+    def __init__(self, university):
+        try:
+            # Set this `api_org_config` base on Django settings and `university` set in XBlock.
+            self.api_org_config = {}
+            for c in settings.QUALTRICS_ORGANIZATION_API_CONFIGS:
+                # Strip `organization` name from the Qualtrics zone location in case a survey includes it.
+                # Example: `clemson.ca1`, `utsa.az1` where `ca1` and `az1` represent the zones. 
+                # The result would be `clemson` or `utsa` after the `.split('.')[0]` is called.
+                # We're doing this because the key values in QUALTRICS_ORGANIZATION_API_CONFIGS
+                # are organization specific and don't include any zone information. 
+                if c['NAME'] == university.split('.')[0]:
+                    self.api_org_config = c
+        except KeyError as error:
+            LOGGER.error(
+                f"Cannot locate Qualtrics API configuration for {university}. "
+                f"Please configure QUALTRICS_ORGANIZATION_API_CONFIGS in Django settings.\n"
+            )
+
         self.api_ver = settings.QUALTRICS_API_VERSION
         if self.api_ver != 'v1':
             # initialize backend token cache
@@ -38,13 +55,25 @@ class QualtricsApi():
             )
             raise
 
+    def _get_api_config_setting(self, name):
+        """
+        Returns an api_config setting if available.
+        """
+        try:
+            return self.api_org_config[name]
+        except KeyError as error:
+            LOGGER.error(
+                f"Cannot locate Qualtrics API configuration value for {name}. "
+                f"Please configure QUALTRICS_ORGANIZATION_API_CONFIGS in Django settings.\n"
+            )
+
     @lazy
     def _api_auth_url(self):
         """
         Auth URL for all API requests.
         """
 
-        return "{}/oauth2/token".format(settings.QUALTRICS_API_BASE_URL)
+        return "{}/oauth2/token".format(self._get_api_config_setting('QUALTRICS_API_BASE_URL'))
 
     @lazy
     def _api_base_url(self):
@@ -52,7 +81,7 @@ class QualtricsApi():
         Base URL for all API requests.
         """
 
-        return "{}/API/{}".format(settings.QUALTRICS_API_BASE_URL, settings.QUALTRICS_API_VERSION)
+        return "{}/API/{}".format(self._get_api_config_setting('QUALTRICS_API_BASE_URL'), settings.QUALTRICS_API_VERSION)
 
     @lazy
     def _api_eventsubscriptions_base_url(self):
@@ -86,7 +115,7 @@ class QualtricsApi():
         # v1 is deprecated and will result in 404 error
         if settings.QUALTRICS_API_VERSION == 'v1':
             headers = {
-                'X-API-TOKEN': settings.QUALTRICS_API_TOKEN, 
+                'X-API-TOKEN': self._get_api_config_setting('QUALTRICS_API_TOKEN'), 
                 'Content-Type': 'application/json'
             }
             return headers
@@ -141,13 +170,22 @@ class QualtricsApi():
         Checks for valid auth token in cache and returns it, otherwise a new one is generated and saved to cache
         """
 
-        token_cached = self.token_cache.get('qualtrics_api_auth_token')
+        # Import is placed here to avoid circular import
+        from openedx.core.djangoapps.theming.helpers import get_current_site
+        current_site = get_current_site()
+
+        if current_site is None:
+            LOGGER.info('Qualtrics: No current site, not getting cached oauth token')
+            return
+
+        token_cache_name = 'qualtrics_api_auth_token_' + str(current_site.id)
+        token_cached = self.token_cache.get(token_cache_name)
 
         if token_cached is not None:
             return token_cached
         else:
-            client_id = settings.QUALTRICS_API_CLIENT_ID
-            client_secret = settings.QUALTRICS_API_CLIENT_SECRET
+            client_id = self._get_api_config_setting('QUALTRICS_API_OAUTH_CLIENT_ID')
+            client_secret = self._get_api_config_setting('QUALTRICS_API_OAUTH_CLIENT_SECRET')
 
             payload= {
                 'grant_type': 'client_credentials',
@@ -158,7 +196,7 @@ class QualtricsApi():
             
             if response.ok:
                 token = response.json()['access_token']
-                self.token_cache.set('qualtrics_api_auth_token', token, getattr(settings, 'QUALTRICS_API_TOKEN_EXPIRATION', 3599))  #24h
+                self.token_cache.set(token_cache_name, token, getattr(settings, 'QUALTRICS_API_TOKEN_EXPIRATION', 3599))  #24h
                 return token
             else:
                 response.raise_for_status()
