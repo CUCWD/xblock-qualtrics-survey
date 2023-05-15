@@ -585,7 +585,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
     )
     your_university = String(
         display_name=_('Your University:'),
-        default='clemson.ca1',
+        default='clemson',
         scope=Scope.settings,
         help=_('This is the name of your university.'),
     )
@@ -829,7 +829,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
             # Get the number of questions from the Qualtrics Survey Definition Questions
             # endpoint and find all questions with score value set.
-            response_survey_questions = QualtricsApi().get_survey_definition_questions(self.get_survey_id())
+            response_survey_questions = QualtricsApi(self.your_university).get_survey_definition_questions(self.get_survey_id())
 
             if response_survey_questions.ok:
                 data_response_survey_questions = response_survey_questions.json()
