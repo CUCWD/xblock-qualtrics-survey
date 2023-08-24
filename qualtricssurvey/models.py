@@ -823,6 +823,23 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
         raw_possible = 0.0
 
+        # Locate all questions included in the survey Trash block and use these ids to 
+        # exclude them from the max_score value.
+        exclude_question_ids = []
+
+        response_survey_definition = QualtricsApi(self.your_university).get_survey_definition(self.get_survey_id())
+        if response_survey_definition.ok:    
+            data_response_survey_definition = response_survey_definition.json()
+            result = data_response_survey_definition["result"]
+            
+            # Loop through all survey blocks looking for items in the Trash and add the
+            # question QIDs to the exclude list for max_score.
+            for block in result["Blocks"].values():
+                if block["Type"] == "Trash":
+                    for block_element in block["BlockElements"]:
+                        if block_element["QuestionID"] not in exclude_question_ids:
+                            exclude_question_ids.append(block_element["QuestionID"])
+
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
 
@@ -836,13 +853,20 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
                 elements = result["elements"]
 
                 for question in elements:
-                    if question["GradingData"]:
-                        raw_possible += float(question["GradingData"][0]["Grades"][self.get_survey_score_id()])
+                    if question["GradingData"] and question["QuestionID"] not in exclude_question_ids:
+                        for grade_data in question["GradingData"]:
+                            try:
+                                raw_possible += float(grade_data["Grades"][self.get_survey_score_id()])
+                            except ValueError as err:
+                                # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
+                                LOGGER.warning(u"Qualtrics – max_score() – Issue with getting raw_possible for – Survey ID ({}) QID ({}) GradingData({}) – {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][self.get_survey_score_id()], err))
+                                continue
         else:
             # Awards full points for completing a survey (default)
             raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 0.0)
 
-        return raw_possible
+        # Round to nearest tenth.
+        return round(raw_possible, 1)
 
     @XBlock.json_handler
     def is_graded(self, data, suffix=''):
