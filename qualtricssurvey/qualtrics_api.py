@@ -127,6 +127,24 @@ class QualtricsApi():
             }
             return headers
 
+    def get_survey_definition(self, survey_id):
+        """
+        Retrieve survey definition
+        https://api.qualtrics.com/9d0928392673d-get-survey
+        """
+
+        url = "{}/{}".format(self._api_survey_definitions_base_url, survey_id)
+
+        payload = {}
+        headers = self.get_headers()
+       
+        try:
+            response_survey_definition = requests.request("GET", url, headers=headers, data=payload)
+            self._log_if_raised(response_survey_definition, payload)
+        except:
+            LOGGER.error(u"QualtricsApi – Issue with get_survey_definition() – Survey ID ({})".format(survey_id)) 
+
+        return response_survey_definition
     def get_survey_definition_questions(self, survey_id):
         """
         Retrieve survey definition questions
