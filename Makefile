@@ -1,9 +1,9 @@
 #!/usr/bin/make -f
 package_name := qualtricssurvey
 module_root := ./$(package_name)
-css_files := $(patsubst %.less, %.css, $(wildcard ./$(module_root)/public/css/*.less))
+css_files := $(patsubst %.less, %.css, $(wildcard ./$(module_root)/static/css/*.less))
 html_files := $(wildcard ./$(module_root)/templates/*.html)
-js_files := $(wildcard ./$(module_root)/public/*.js)
+js_files := $(wildcard ./$(module_root)/static/*.js)
 files_with_translations := $(js_files) $(html_files)
 translation_root := $(module_root)/translations
 po_files := $(wildcard $(translation_root)/*/LC_MESSAGES/django.po)
@@ -54,7 +54,7 @@ requirements_js:  # Install required packages
 
 .PHONY: static
 static: requirements_js $(css_files)  ## Compile the less->css
-$(module_root)/public/css/%.css: $(module_root)/public/css/%.less
+$(module_root)/static/css/%.css: $(module_root)/static/css/%.less
 	@echo "$< -> $@"
 	node_modules/less/bin/lessc $< $@
 

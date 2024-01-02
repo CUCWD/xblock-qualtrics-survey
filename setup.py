@@ -81,6 +81,20 @@ def is_requirement(line):
     return line and line.strip() and not line.startswith(('-r', '#', '-e', 'git+', '-c'))
 
 
+def package_data(pkg, roots):
+    """Generic function to find package_data.
+    All of the files under each of the `roots` will be declared as package
+    data for package `pkg`.
+    """
+    data = []
+    for root in roots:
+        for dirname, _, files in os.walk(os.path.join(pkg, root)):
+            for fname in files:
+                data.append(os.path.relpath(os.path.join(dirname, fname), pkg))
+
+    return {pkg: data}
+
+
 setup(
     name='xblock_qualtrics_survey',
     version=version,
@@ -102,13 +116,7 @@ setup(
     package_dir={
         'qualtricssurvey': 'qualtricssurvey',
     },
-    package_data={
-        "qualtricssurvey": [
-            'public/*',
-            'scenarios/*.xml',
-            'templates/*',
-        ],
-    },
+    package_data=package_data("qualtricssurvey", ["static", "public", "scenarios"]),
     classifiers=[
         # https://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Intended Audience :: Developers',
