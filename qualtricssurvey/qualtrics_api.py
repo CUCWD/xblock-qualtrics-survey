@@ -16,7 +16,6 @@ class QualtricsApi():
     def __init__(self, university):
         try:
             # Set this `api_org_config` base on Django settings and `university` set in XBlock.
-            self.api_org = university.split('.')[0]
             self.api_org_config = {}
             for c in settings.QUALTRICS_ORGANIZATION_API_CONFIGS:
                 # Strip `organization` name from the Qualtrics zone location in case a survey includes it.
@@ -24,7 +23,7 @@ class QualtricsApi():
                 # The result would be `clemson` or `utsa` after the `.split('.')[0]` is called.
                 # We're doing this because the key values in QUALTRICS_ORGANIZATION_API_CONFIGS
                 # are organization specific and don't include any zone information. 
-                if c['NAME'] == self.api_org:
+                if c['NAME'] == university.split('.')[0]:
                     self.api_org_config = c
         except KeyError as error:
             LOGGER.error(
@@ -177,13 +176,15 @@ class QualtricsApi():
         Checks for valid auth token in cache and returns it, otherwise a new one is generated and saved to cache
         """
 
-        # If no api org set from passed in university setting then exit and don't set/retrieve
-        # oauth token in cache.
-        if not self.api_org:
-            LOGGER.info('Qualtrics: No current api_org set for this component, not getting cached oauth token')
+        # Import is placed here to avoid circular import
+        from openedx.core.djangoapps.theming.helpers import get_current_site
+        current_site = get_current_site()
+
+        if current_site is None:
+            LOGGER.info('Qualtrics: No current site, not getting cached oauth token')
             return
 
-        token_cache_name = 'qualtrics_api_auth_token_' + str(self.api_org)
+        token_cache_name = 'qualtrics_api_auth_token_' + str(current_site.id)
         token_cached = self.token_cache.get(token_cache_name)
 
         if token_cached is not None:
