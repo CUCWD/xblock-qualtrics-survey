@@ -1,9 +1,8 @@
 """
 XBlock for linking to a Qualtrics survey
 """
-import os
-import re
-from os import path
+from os import path, walk
+from setuptools import setup
 
 from setuptools import find_packages, setup
 
@@ -88,9 +87,9 @@ def package_data(pkg, roots):
     """
     data = []
     for root in roots:
-        for dirname, _, files in os.walk(os.path.join(pkg, root)):
+        for dirname, _, files in walk(path.join(pkg, root)):
             for fname in files:
-                data.append(os.path.relpath(os.path.join(dirname, fname), pkg))
+                data.append(path.relpath(path.join(dirname, fname), pkg))
 
     return {pkg: data}
 
