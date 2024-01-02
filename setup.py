@@ -1,6 +1,8 @@
 """
 XBlock for linking to a Qualtrics survey
 """
+import re
+import os
 from os import path, walk
 from setuptools import setup
 
