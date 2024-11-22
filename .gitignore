@@ -7,4 +7,9 @@ package-lock.json
 .tox/
 sdk/
 venv/
+<<<<<<< HEAD
 .idea/
+=======
+
+.dockerignore
+>>>>>>> f045afe... Merge pull request #3 from CUCWD/feature.koa/bsande6/Rm8eK7r-tkOu4CjdeWrJumQAPvl4/Extra-Fields-For-Survey

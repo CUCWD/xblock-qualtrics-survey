@@ -9,7 +9,15 @@ split into its own library.
 from django.template.context import Context
 from xblock.core import XBlock
 from xblock.fragment import Fragment
+#from qualtricssurvey.models import SurveyStatus
+from django.conf import settings
+import json
+import requests
+from django.core import serializers
+import logging
+from ..utils import resource_string
 
+LOGGER = logging.getLogger(__name__)
 
 class XBlockFragmentBuilderMixin:
     """
@@ -21,7 +29,7 @@ class XBlockFragmentBuilderMixin:
     static_js = [
         'view.js',
     ]
-    static_js_init = None
+    static_js_init = 'QualtricsSurveyView'
     template = 'view.html'
 
     def provide_context(self, context):  # pragma: no cover
@@ -33,7 +41,7 @@ class XBlockFragmentBuilderMixin:
         context = context or {}
         context = dict(context)
         return context
-
+            
     @XBlock.supports('multi_device')
     def student_view(self, context=None):
         """
@@ -50,7 +58,12 @@ class XBlockFragmentBuilderMixin:
             css=static_css,
             js=static_js,
             js_init=js_init,
-        )
+        )                        
+         
+        # Marks survey as incomplete for case that the learner's state was deleted
+        if (self.score is None):
+            self.is_answered = False
+       
         return fragment
 
     def build_fragment(
@@ -64,12 +77,13 @@ class XBlockFragmentBuilderMixin:
         """
         Creates a fragment for display.
         """
+        
         context = context or {}
         css = css or []
         js = js or []
         rendered_template = ''
         if template:  # pragma: no cover
-            template = 'templates/' + template
+            template = 'static/html/' + template
             rendered_template = self.loader.render_django_template(
                 template,
                 context=Context(context),
@@ -79,14 +93,21 @@ class XBlockFragmentBuilderMixin:
         for item in css:
             if item.startswith('/'):
                 url = item
+                fragment.add_css_url(url)
             else:
-                item = 'public/' + item
-                url = self.runtime.local_resource_url(self, item)
-            fragment.add_css_url(url)
+                item = 'static/css/' + item
+                # Not calling `self.runtime.local_resource_url` because
+                # the resources would need to be in `/public` directory
+                fragment.add_css(resource_string(item))
         for item in js:
-            item = 'public/' + item
-            url = self.runtime.local_resource_url(self, item)
-            fragment.add_javascript_url(url)
+            if item.startswith('/'):
+                url = item
+                fragment.add_javascript_url(url)
+            else:
+                item = 'static/js/' + item
+                # Not calling `self.runtime.local_resource_url` because
+                # the resources would need to be in `/public` directory
+                fragment.add_javascript(resource_string(item))
         if js_init:  # pragma: no cover
             fragment.initialize_js(js_init)
         return fragment
