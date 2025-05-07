@@ -60,13 +60,14 @@ class CourseDetailsXBlockMixin(object):
         qs_course_institution = 'None'
         qs_course_instructor = 'None'
         qs_course_term = 'perpetual'
+
         while block_iter:
             block_iter_type = block_iter.scope_ids.block_type
     
             if block_iter_type == 'course':  
-                qs_course_institution = block_iter.qualtrics_institution
-                qs_course_instructor = block_iter.qualtrics_instructors
-                qs_course_term = block_iter.qualtrics_term
+                qs_course_institution = block_iter.other_course_settings['qualtrics_institution']
+                qs_course_instructor = block_iter.instructor_info['instructors']
+                qs_course_term = block_iter.other_course_settings['qualtrics_term']
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
 
