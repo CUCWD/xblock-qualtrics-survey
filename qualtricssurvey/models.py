@@ -5,7 +5,7 @@ Handle data access logic for the XBlock
 import six
 from datetime import datetime
 from xblock.scorable import ScorableXBlockMixin, Score
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from xblock.core import XBlock
