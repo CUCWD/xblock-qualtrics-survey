@@ -21,6 +21,7 @@ from opaque_keys.edx.django.models import UsageKeyField
 from django.conf import settings
 from lms.djangoapps.grades import tasks
 from custom_reg_form.models import ExtraInfo
+from organizations.models import OrganizationInstitutionCourse
 # from requests.packages.urllib3.exceptions import HTTPError
 
 from xmodule.fields import ScoreField
@@ -61,15 +62,26 @@ class CourseDetailsXBlockMixin(object):
         qs_course_instructor = 'None'
         qs_course_term = 'perpetual'
 
+        qs_course_id = self.course_id
+
+        try:
+            qs_course_institution = OrganizationInstitutionCourse.objects.get(course_id=qs_course_id)
+
+            qs_course_institution = qs_course_institution.institution.short_name
+        except:
+            LOGGER.error(u"QualtricsXblock – Unable to find course institution – Course ID ({})".format(qs_course_id)) 
+
         while block_iter:
             block_iter_type = block_iter.scope_ids.block_type
     
             if block_iter_type == 'course':  
-                qs_course_institution = block_iter.other_course_settings['qualtrics_institution']
+                # qs_course_institution = block_iter.other_course_settings['qualtrics_institution']
                 qs_course_instructor = block_iter.instructor_info['instructors']
                 qs_course_term = block_iter.other_course_settings['qualtrics_term']
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
+
+        LOGGER.error(u"QualtricsXblock – course institution information for Course ID ({}) - Institution: ({})".format(qs_course_id, qs_course_institution)) 
 
         return qs_course_institution, qs_course_instructor, qs_course_term
 
