@@ -77,7 +77,10 @@ class CourseDetailsXBlockMixin(object):
             if block_iter_type == 'course':  
                 # qs_course_institution = block_iter.other_course_settings['qualtrics_institution']
                 qs_course_instructor = block_iter.instructor_info['instructors']
-                qs_course_term = block_iter.other_course_settings['qualtrics_term']
+                try:
+                    qs_course_term = block_iter.other_course_settings['qualtrics_term']
+                except:
+                    LOGGER.error("QualtricsXblock – No qualtrics term found in other_course_settings")
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
 
