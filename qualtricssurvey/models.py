@@ -58,24 +58,15 @@ class CourseDetailsXBlockMixin(object):
         Return CMS Advanced Settings
         """
         block_iter = block
-        qs_course_organization = 'None'
         qs_course_instructor = 'None'
         qs_course_term = 'perpetual'
 
         qs_course_id = self.course_id
 
-        try:
-            qs_course_organization = OrganizationCourse.objects.get(course_id=qs_course_id)
-
-            qs_course_organization = qs_course_organization.short_name
-        except:
-            LOGGER.error(u"QualtricsXblock – Unable to find course organization – Course ID ({})".format(qs_course_id))
-
         while block_iter:
             block_iter_type = block_iter.scope_ids.block_type
     
             if block_iter_type == 'course':  
-                # qs_course_organization = block_iter.other_course_settings['qualtrics_institution']
                 qs_course_instructor = block_iter.instructor_info['instructors']
                 try:
                     qs_course_term = block_iter.other_course_settings['qualtrics_term']
@@ -84,9 +75,7 @@ class CourseDetailsXBlockMixin(object):
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
 
-        LOGGER.error(u"QualtricsXblock – course organization information for Course ID ({}) - Organization: ({})".format(qs_course_id, qs_course_organization))
-
-        return qs_course_organization.organization.short_name, qs_course_instructor, qs_course_term
+        return qs_course_instructor, qs_course_term
 
     @property
     def course_id(self):
@@ -188,7 +177,7 @@ class CourseDetailsXBlockMixin(object):
             raise ValueError("Could not find the specified Block ID.")
     
         src_block = modulestore().get_item(usage_key)
-        institution, instructors, term = self._get_context_course_advanced_settings(src_block)
+        instructors, term = self._get_context_course_advanced_settings(src_block)
         
         return instructors
 
@@ -201,7 +190,7 @@ class CourseDetailsXBlockMixin(object):
             raise ValueError("Could not find the specified Block ID.")
             
         src_block = modulestore().get_item(usage_key)
-        institution, instructors, term = self._get_context_course_advanced_settings(src_block)
+        instructors, term = self._get_context_course_advanced_settings(src_block)
         return term
 
 
@@ -417,7 +406,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         'course_term_override',
         'course_start_date_override',
         'course_end_date_override',
-        'course_institution_override',
         'course_instructors_override',
         'forward_platform_user_pii',
         'forward_platform_user_demographic_data',
@@ -489,14 +477,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         scope=Scope.settings,
         help=_(
             'Enter in the course start date override (e.g. "2019-08-20").'
-        ),
-    )
-    course_institution_override = String(
-        display_name=_('Course Institution:'),
-        default='',
-        scope=Scope.settings,
-        help=_(
-            'Enter in the course institution override (e.g. "Clemson").'
         ),
     )
     course_instructors_override = List(
