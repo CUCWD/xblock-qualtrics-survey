@@ -21,7 +21,7 @@ from opaque_keys.edx.django.models import UsageKeyField
 from django.conf import settings
 from lms.djangoapps.grades import tasks
 from custom_reg_form.models import ExtraInfo
-from organizations.models import OrganizationInstitutionCourse
+from organizations.models import OrganizationCourse
 # from requests.packages.urllib3.exceptions import HTTPError
 
 from xmodule.fields import ScoreField
@@ -58,24 +58,24 @@ class CourseDetailsXBlockMixin(object):
         Return CMS Advanced Settings
         """
         block_iter = block
-        qs_course_institution = 'None'
+        qs_course_organization = 'None'
         qs_course_instructor = 'None'
         qs_course_term = 'perpetual'
 
         qs_course_id = self.course_id
 
         try:
-            qs_course_institution = OrganizationInstitutionCourse.objects.get(course_id=qs_course_id)
+            qs_course_organization = OrganizationCourse.objects.get(course_id=qs_course_id)
 
-            qs_course_institution = qs_course_institution.institution.short_name
+            qs_course_organization = qs_course_organization.short_name
         except:
-            LOGGER.error(u"QualtricsXblock – Unable to find course institution – Course ID ({})".format(qs_course_id)) 
+            LOGGER.error(u"QualtricsXblock – Unable to find course organization – Course ID ({})".format(qs_course_id))
 
         while block_iter:
             block_iter_type = block_iter.scope_ids.block_type
     
             if block_iter_type == 'course':  
-                # qs_course_institution = block_iter.other_course_settings['qualtrics_institution']
+                # qs_course_organization = block_iter.other_course_settings['qualtrics_institution']
                 qs_course_instructor = block_iter.instructor_info['instructors']
                 try:
                     qs_course_term = block_iter.other_course_settings['qualtrics_term']
@@ -84,9 +84,9 @@ class CourseDetailsXBlockMixin(object):
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
 
-        LOGGER.error(u"QualtricsXblock – course institution information for Course ID ({}) - Institution: ({})".format(qs_course_id, qs_course_institution)) 
+        LOGGER.error(u"QualtricsXblock – course organization information for Course ID ({}) - Organization: ({})".format(qs_course_id, qs_course_organization))
 
-        return qs_course_institution, qs_course_instructor, qs_course_term
+        return qs_course_organization.organization.short_name, qs_course_instructor, qs_course_term
 
     @property
     def course_id(self):
@@ -178,18 +178,6 @@ class CourseDetailsXBlockMixin(object):
             return ""
 
         return str(CourseOverview.get_from_id(raw_course_id).end_date.date())
-    
-    @property
-    def course_institution(self):
-        source_block_id_str = str(self.location)
-        try:
-            usage_key = UsageKey.from_string(source_block_id_str)
-        except InvalidKeyError:
-            raise ValueError("Could not find the specified Block ID.")
-            
-        src_block = modulestore().get_item(usage_key)
-        institution, instructors, term = self._get_context_course_advanced_settings(src_block)
-        return institution
     
     @property
     def course_instructors(self):
@@ -755,16 +743,6 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
 
         return six.text_type(six.moves.urllib.parse.quote(self.course_end_date))
         
-
-    def get_course_institution(self):
-        """
-        Return the course_institution of the course where this XBlock is used.
-        Encode return value for Qualtrics query parameter usage.
-        """
-        if self.course_institution_override:
-            return six.text_type(six.moves.urllib.parse.quote(self.course_institution_override))
-
-        return six.text_type(six.moves.urllib.parse.quote(self.course_institution))
 
     def get_course_instructors(self):
         """
