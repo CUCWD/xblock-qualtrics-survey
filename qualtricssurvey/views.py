@@ -108,6 +108,17 @@ class QualtricsSurveyViewMixin(
                     param_demographic_local_community_living=self.get_user_local_community_living
             )
 
+        forward_course_organization_data_string = ""
+        if self.should_forward_course_organization_info():
+            forward_course_organization_data_string = (
+                "org_institution_name={param_org_institution_name}&org_institution_short_name={param_org_institution_short_name}&org_institution_city={param_org_institution_city}&org_institution_state={param_org_institution_state}&org_institution_zipcode={param_org_institution_zipcode}").format(
+                    param_org_institution_name=self.organization_name,
+                    param_org_institution_short_name=self.organization_short_name,
+                    param_org_institution_city=self.organization_city,
+                    param_org_institution_state=self.organization_state,
+                    param_org_institution_zipcode=self.organization_zipcode
+            )
+
         param_display_simulation_exists = '1' if self.should_show_simulation_exists() else '0'
         show_simulation_exists_string = ("simulation_exists={param_display_simulation_exists}").format(
             param_display_simulation_exists=param_display_simulation_exists,
@@ -139,6 +150,7 @@ class QualtricsSurveyViewMixin(
             'forward_platform_user_pii': forward_platform_user_pii_string.strip(),
             'forward_platform_user_demographic_data':
             forward_platform_user_demographic_data_string.strip(),
+            'forward_course_organization_data': forward_course_organization_data_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
             'message': self.message,
