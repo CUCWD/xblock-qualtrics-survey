@@ -21,7 +21,7 @@ from opaque_keys.edx.django.models import UsageKeyField
 from django.conf import settings
 from lms.djangoapps.grades import tasks
 from custom_reg_form.models import ExtraInfo
-from organizations.models import OrganizationCourse
+from organizations.models import Organization, OrganizationCourse
 # from requests.packages.urllib3.exceptions import HTTPError
 
 from xmodule.fields import ScoreField
@@ -193,6 +193,50 @@ class CourseDetailsXBlockMixin(object):
         instructors, term = self._get_context_course_advanced_settings(src_block)
         return term
 
+class OrganizationDetailsXBlockMixin(object):
+    """
+    Handles all organization related information from the platform.
+    """
+
+    @property
+    def organization_name(self):
+        try:
+            org = Organization.objects.get(short_name=self.course_org)
+            return org.name
+        except Organization.DoesNotExist:
+            return ''
+
+    @property
+    def organization_short_name(self):
+        try:
+            org = Organization.objects.get(short_name=self.course_org)
+            return org.short_name
+        except Organization.DoesNotExist:
+            return ''
+
+    @property
+    def organization_city(self):
+        try:
+            org = Organization.objects.get(short_name=self.course_org)
+            return org.city
+        except Organization.DoesNotExist:
+            return ''
+
+    @property
+    def organization_state(self):
+        try:
+            org = Organization.objects.get(short_name=self.course_org)
+            return org.state
+        except Organization.DoesNotExist:
+            return ''
+
+    @property
+    def organization_zipcode(self):
+        try:
+            org = Organization.objects.get(short_name=self.course_org)
+            return org.zipcode
+        except Organization.DoesNotExist:
+            return ''
 
 class UserDetailsXBlockMixin(object):
     """
@@ -385,7 +429,7 @@ class UserDemographicsXBlockMixin(object):
             user_local_community_living = 'error'
         return user_local_community_living
 
-class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, UserDetailsXBlockMixin, UserDemographicsXBlockMixin):
+class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, OrganizationDetailsXBlockMixin, UserDetailsXBlockMixin, UserDemographicsXBlockMixin):
     """
     Handle data access for XBlock instances
     """
@@ -409,6 +453,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         'course_instructors_override',
         'forward_platform_user_pii',
         'forward_platform_user_demographic_data',
+        'forward_course_organization_info',
         'send_qualtrics_score_to_platform',
         'show_simulation_exists',
         'show_meta_information',
@@ -532,6 +577,13 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
     forward_platform_user_demographic_data = Boolean(
         display_name=_("Forward Platform User Demographic Data to Qualtrics"),
         help=_("Sends personal demographic information (gender, level of education, etc) about the platform user account to Qualtrics. "
+               "This is disabled by default."),
+        scope=Scope.settings,
+        default=False
+    )
+    forward_course_organization_info = Boolean(
+        display_name=_("Forward Course Organization Details to Qualtrics"),
+        help=_("Sends course organization details (institution name, short name, city, state, zipcode) to Qualtrics. "
                "This is disabled by default."),
         scope=Scope.settings,
         default=False
@@ -751,6 +803,12 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, U
         Return True/False to indicate whether to forward the "Forward Platform User PII to Qualtrics" information.
         """
         return self.forward_platform_user_pii
+    
+    def should_forward_course_organization_info(self):
+        """
+        Return True/False to indicate whether to forward the "Forward Course Organization Info to Qualtrics" information.
+        """
+        return self.forward_course_organization_info
 
     def should_send_qualtrics_score_to_platform(self):
         """
