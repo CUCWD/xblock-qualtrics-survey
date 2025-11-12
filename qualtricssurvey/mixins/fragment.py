@@ -9,8 +9,8 @@ split into its own library.
 from django.template.context import Context
 from xblock.core import XBlock
 from web_fragments.fragment import Fragment
-from qualtricssurvey.models import QualtricsSubscriptions
-from qualtricssurvey.models import SurveyStatus
+# from qualtricssurvey.models import QualtricsSubscriptions
+# from qualtricssurvey.models import SurveyStatus
 from django.conf import settings
 import json
 import requests

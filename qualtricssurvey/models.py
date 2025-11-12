@@ -20,7 +20,6 @@ from opaque_keys.edx.django.models import CourseKeyField
 from opaque_keys.edx.django.models import UsageKeyField
 from django.conf import settings
 from lms.djangoapps.grades import tasks
-from custom_reg_form.models import ExtraInfo
 from organizations.models import Organization, OrganizationCourse
 # from requests.packages.urllib3.exceptions import HTTPError
 
@@ -65,7 +64,6 @@ class CourseDetailsXBlockMixin(object):
 
         while block_iter:
             block_iter_type = block_iter.scope_ids.block_type
-    
             if block_iter_type == 'course':  
                 qs_course_instructor = block_iter.instructor_info['instructors']
                 try:
@@ -201,40 +199,60 @@ class OrganizationDetailsXBlockMixin(object):
     @property
     def organization_name(self):
         try:
+            # Only return name if forwarding course organization info is enabled
+            if self.should_forward_course_organization_info() is False:
+                return ''
+
             org = Organization.objects.get(short_name=self.course_org)
-            return org.name
+            return getattr(org, 'name', '')
         except Organization.DoesNotExist:
             return ''
 
     @property
     def organization_short_name(self):
         try:
+            # Only return short name if forwarding course organization info is enabled
+            if self.should_forward_course_organization_info() is False:
+                return ''
+
             org = Organization.objects.get(short_name=self.course_org)
-            return org.short_name
+            return getattr(org, 'short_name', '')
         except Organization.DoesNotExist:
             return ''
 
     @property
     def organization_city(self):
         try:
+            # Only return city if forwarding course organization info is enabled
+            if self.should_forward_course_organization_info() is False:
+                return ''
+            
             org = Organization.objects.get(short_name=self.course_org)
-            return org.city
+            return getattr(org, 'city', '')
         except Organization.DoesNotExist:
             return ''
 
     @property
     def organization_state(self):
         try:
+            # Only return state if forwarding course organization info is enabled
+            if self.should_forward_course_organization_info() is False:
+                return ''
+
             org = Organization.objects.get(short_name=self.course_org)
-            return org.state
+            return getattr(org, 'state', '')
         except Organization.DoesNotExist:
             return ''
 
     @property
     def organization_zipcode(self):
         try:
+            # Only return zipcode if forwarding course organization info is enabled
+            if self.should_forward_course_organization_info() is False:
+                return ''
+
             org = Organization.objects.get(short_name=self.course_org)
-            return org.zipcode
+            return getattr(org, 'zipcode', '')
         except Organization.DoesNotExist:
             return ''
 
@@ -313,9 +331,18 @@ class UserDemographicsXBlockMixin(object):
 
     def get_user_extra_info(self):
         user_id = self.get_user_profile().user_id
+        # Import ExtraInfo locally because the optional app providing it may not be installed.
+        try:
+            from custom_reg_form.models import ExtraInfo
+        except Exception:
+            # ExtraInfo model is not available; return None to indicate absence.
+            return None
+
         try:
             extra_info = ExtraInfo.objects.get(user_id=user_id)
-        except:
+        except ExtraInfo.DoesNotExist:
+            extra_info = None
+        except Exception:
             extra_info = None
         return extra_info
 
@@ -324,10 +351,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user year of birth information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled
+        if self.should_forward_platform_user_demographic_data() is False:
+            return ''
+
         try:
             user_year_of_birth = self.get_user_profile().year_of_birth
         except (AttributeError, KeyError):
-            user_year_of_birth = 'error'
+            user_year_of_birth = ''
         return user_year_of_birth
 
     @property
@@ -335,10 +366,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user gender information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled
+        if self.should_forward_platform_user_demographic_data() is False:
+            return ''
+        
         try:
             user_gender = self.get_user_profile().gender_display
         except (AttributeError, KeyError):
-            user_gender = 'error'
+            user_gender = ''
         return user_gender
 
     @property
@@ -346,10 +381,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user level of education information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled
+        if self.should_forward_platform_user_demographic_data() is False:
+            return ''
+
         try:
             user_level_of_education = self.get_user_profile().level_of_education_display
         except (AttributeError, KeyError):
-            user_level_of_education = 'error'
+            user_level_of_education = ''
         return user_level_of_education
 
     @property
@@ -357,10 +396,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user level of education information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled
+        if self.should_forward_platform_user_demographic_data() is False:
+            return ''
+
         try:
             user_country = self.get_user_profile().country
         except (AttributeError, KeyError):
-            user_country = 'error'
+            user_country = ''
         return user_country
 
     @property
@@ -368,10 +411,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+
         try:
             user_ethnicity = self.get_user_extra_info().ethnicity_display
         except (AttributeError, KeyError):
-            user_ethnicity = 'error'
+            user_ethnicity = ''
         return user_ethnicity
 
     @property
@@ -379,10 +426,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+        
         try:
             user_employment_status = self.get_user_extra_info().employment_status_display
         except (AttributeError, KeyError):
-            user_employment_status = 'error'
+            user_employment_status = ''
         return user_employment_status
 
     @property
@@ -390,10 +441,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+
         try:
             user_zipcode = self.get_user_extra_info().zipcode
         except (AttributeError, KeyError):
-            user_zipcode = 'error'
+            user_zipcode = ''
         return user_zipcode
 
     @property
@@ -401,10 +456,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+
         try:
             user_enrolled_in_school = self.get_user_extra_info().enrolled_in_school_display
         except (AttributeError, KeyError):
-            user_enrolled_in_school = 'error'
+            user_enrolled_in_school = ''
         return user_enrolled_in_school
 
     @property
@@ -412,10 +471,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+
         try:
             user_enrolled_in_school_type = self.get_user_extra_info().enrolled_in_school_type_display
         except (AttributeError, KeyError):
-            user_enrolled_in_school_type = 'error'
+            user_enrolled_in_school_type = ''
         return user_enrolled_in_school_type
 
     @property
@@ -423,10 +486,14 @@ class UserDemographicsXBlockMixin(object):
         """
         Return user ethnicity information
         """
+        # Only return year of birth if forwarding platform user demographic data is enabled or extra info is not available.
+        if self.should_forward_platform_user_demographic_data() is False or self.get_user_extra_info() is None:
+            return ''
+
         try:
             user_local_community_living = self.get_user_extra_info().local_community_living_display
         except (AttributeError, KeyError):
-            user_local_community_living = 'error'
+            user_local_community_living = ''
         return user_local_community_living
 
 class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, OrganizationDetailsXBlockMixin, UserDetailsXBlockMixin, UserDemographicsXBlockMixin):

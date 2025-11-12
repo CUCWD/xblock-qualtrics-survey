@@ -3,7 +3,7 @@ XBlock for linking to a Qualtrics survey
 """
 import os
 import re
-from os import path
+from os import path, walk
 
 from setuptools import find_packages, setup
 
