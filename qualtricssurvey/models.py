@@ -57,21 +57,30 @@ class CourseDetailsXBlockMixin(object):
         Return CMS Advanced Settings
         """
         block_iter = block
-        qs_course_instructor = 'None'
-        qs_course_term = 'perpetual'
+        # Use empty string defaults so missing keys/attributes result in empty string instead of raising.
+        qs_course_instructor = ''
+        qs_course_term = ''
 
         qs_course_id = self.course_id
 
         while block_iter:
-            block_iter_type = block_iter.scope_ids.block_type
-            if block_iter_type == 'course':  
-                qs_course_instructor = block_iter.instructor_info['instructors']
+            block_iter_type = getattr(block_iter.scope_ids, 'block_type', None)
+            if block_iter_type == 'course':
+                # Safely access instructor_info and other_course_settings without raising KeyError
                 try:
-                    qs_course_term = block_iter.other_course_settings['qualtrics_term']
-                except:
-                    LOGGER.error("QualtricsXblock – No qualtrics term found in other_course_settings")
-            
-            block_iter = block_iter.get_parent() if block_iter.parent else None
+                    instructor_info = getattr(block_iter, 'instructor_info', {}) or {}
+                    qs_course_instructor = instructor_info.get('instructors', '')
+                except Exception:
+                    qs_course_instructor = ''
+
+                try:
+                    other_settings = getattr(block_iter, 'other_course_settings', {}) or {}
+                    qs_course_term = other_settings.get('qualtrics_term', '')
+                except Exception:
+                    qs_course_term = ''
+                    LOGGER.error("QualtricsXblock - No qualtrics term found in other_course_settings")
+
+            block_iter = block_iter.get_parent() if getattr(block_iter, 'parent', None) else None
 
         return qs_course_instructor, qs_course_term
 
