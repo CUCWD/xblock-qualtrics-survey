@@ -893,6 +893,10 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                                 # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
                                 LOGGER.warning(u"Qualtrics – max_score() – Issue with getting raw_possible for – Survey ID ({}) QID ({}) GradingData({}) – {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][self.get_survey_score_id()], err))
                                 continue
+                            except KeyError as err:
+                                # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
+                                LOGGER.warning(u"Qualtrics – max_score() – Issue with getting raw_possible for – Survey ID ({}) QID ({}) – {}".format(self.get_survey_id(), question["QuestionID"], err))
+                                continue
         else:
             # Awards full points for completing a survey (default)
             raw_possible = (self.weight if self.weight is not None and self.weight > 0 else 0.0)
