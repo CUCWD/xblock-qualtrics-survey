@@ -1042,6 +1042,12 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                 
                     # Updates database survey status to complete
                     self.is_answered = True
+
+                    # Mark XBlock as completed in the platform
+                    self.runtime.publish(self, "completion", {"completion": 1.0})
+                    self.survey_completed = True
+                    self.save()
+
                 else:
                     LOGGER.warning(
                         "Could not update the learner's score because the"
