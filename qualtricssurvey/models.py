@@ -71,7 +71,7 @@ class CourseDetailsXBlockMixin(object):
                 try:
                     qs_course_term = block_iter.other_course_settings['qualtrics_term']
                 except:
-                    LOGGER.error("QualtricsXblock – No qualtrics term found in other_course_settings")
+                    LOGGER.error("QualtricsXblock - No qualtrics term found in other_course_settings")
             
             block_iter = block_iter.get_parent() if block_iter.parent else None
 
@@ -836,10 +836,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         Locate the Qualtrics `Score Id` in site configuration or general settings.
         """
-        # score_id = configuration_helpers.get_value(
-        #         "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
-        #     )
-        return QualtricsApi(self.your_university).get_survey_score_id()
+        return QualtricsApi(self.your_university).get_survey_score_id(self.get_survey_id())
     
     def max_score(self):
         """
@@ -874,6 +871,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
 
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
+            score_id = self.get_survey_score_id()
 
             # Get the number of questions from the Qualtrics Survey Definition Questions
             # endpoint and find all questions with score value set.
@@ -888,14 +886,15 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                     if question["GradingData"] and question["QuestionID"] not in exclude_question_ids:
                         for grade_data in question["GradingData"]:
                             try:
-                                raw_possible += float(grade_data["Grades"][self.get_survey_score_id()])
+                                if score_id is not None and score_id in grade_data["Grades"]:
+                                    raw_possible += float(grade_data["Grades"][score_id])
                             except ValueError as err:
                                 # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
-                                LOGGER.warning(u"Qualtrics – max_score() – Issue with getting raw_possible for – Survey ID ({}) QID ({}) GradingData({}) – {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][self.get_survey_score_id()], err))
+                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for - Survey ID ({}) QID ({}) GradingData({}) - {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][score_id], err))
                                 continue
                             except KeyError as err:
                                 # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
-                                LOGGER.warning(u"Qualtrics – max_score() – Issue with getting raw_possible for – Survey ID ({}) QID ({}) – {}".format(self.get_survey_id(), question["QuestionID"], err))
+                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for - Survey ID ({}) QID ({}) - {}".format(self.get_survey_id(), question["QuestionID"], err))
                                 continue
         else:
             # Awards full points for completing a survey (default)
@@ -1018,7 +1017,9 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
             if values is not None:
-                raw_earned = float(values[self.get_survey_score_id()])
+                score_id = self.get_survey_score_id()
+                if score_id is not None and score_id in values:
+                    raw_earned = float(values[score_id])
         else:
             # Awards full points for completing a survey (default)
             raw_earned = (self.weight if self.weight is not None and self.weight > 0 else 1.0)
