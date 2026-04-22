@@ -435,7 +435,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
     """
     survey_completed = False
 
-    editable_fields = [
+    editable_field_names = (
         'display_name',
         'survey_id',
         'your_university',
@@ -458,7 +458,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         'show_simulation_exists',
         'show_meta_information',
         'weight'
-    ]
+    )
     course_id_override = String(
         display_name=_('Course Identifier:'),
         default='',
@@ -814,7 +814,23 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         Return True/False to indicate whether to "Send Qualtrics Score to Platform" information.
         """
-        return self.send_qualtrics_score_to_platform
+        return self.send_qualtrics_score_to_platform and getattr(self, 'graded', False)
+
+    @property
+    def editable_fields(self):
+        """
+        Return Studio-editable fields, hiding score-to-platform setting when ungraded.
+        """
+        editable_fields = list(self.editable_field_names)
+
+        if not getattr(self, 'graded', False):
+            editable_fields = [
+                field_name
+                for field_name in editable_fields
+                if field_name != 'send_qualtrics_score_to_platform'
+            ]
+
+        return tuple(editable_fields)
 
     def should_show_simulation_exists(self):
         """
@@ -959,11 +975,15 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                     # rebinds the user to the xblock so that a grade can be published for the correct user
                     self.system.rebind_noauth_module_to_user(self, real_user)
 
-                    score = self.calculate_score(values)
-                    self.set_score(score)
-                    self.publish_grade()
-                
+                    if self.should_send_qualtrics_score_to_platform():
+                        score = self.calculate_score(values)
+                        self.set_score(score)
+                        self.publish_grade()
+                    else:
+                        self.score = None
+
                     # Updates database survey status to complete
+                    # This is the Completion API call that will mark the survey as completed for the learner in the platform.
                     self.is_answered = True
                 else:
                     LOGGER.warning(
