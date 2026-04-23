@@ -3,6 +3,7 @@ Handle data access logic for the XBlock
 """
 
 import six
+import json
 from datetime import datetime
 from xblock.scorable import ScorableXBlockMixin, Score
 from django.utils.translation import gettext_lazy as _
@@ -810,11 +811,26 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         return self.forward_course_organization_info
 
+    def is_gradeable_subsection(self):
+        """
+        Return True when this block is inside a graded subsection.
+        """
+        if getattr(self, 'graded', False):
+            return True
+
+        block_iter = self
+        while block_iter and getattr(block_iter, 'parent', None):
+            block_iter = block_iter.get_parent()
+            if getattr(block_iter, 'graded', False):
+                return True
+
+        return False
+
     def should_send_qualtrics_score_to_platform(self):
         """
         Return True/False to indicate whether to "Send Qualtrics Score to Platform" information.
         """
-        return self.send_qualtrics_score_to_platform and getattr(self, 'graded', False)
+        return self.send_qualtrics_score_to_platform and self.is_gradeable_subsection()
 
     @property
     def editable_fields(self):
@@ -823,7 +839,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         editable_fields = list(self.editable_field_names)
 
-        if not getattr(self, 'graded', False):
+        if not self.is_gradeable_subsection():
             editable_fields = [
                 field_name
                 for field_name in editable_fields
@@ -922,7 +938,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
     @XBlock.json_handler
     def is_graded(self, data, suffix=''):
         # Returns if the survey is graded or not. Used on the Javscript file to loaded graded status.
-        return {'graded': self.graded}
+        return {'graded': self.is_gradeable_subsection()}
 
     @XBlock.json_handler
     def get_survey_status(self, data, suffix=''):
@@ -941,14 +957,29 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         Called upon completion of the survey
         """
-    
-        status = data.get("Status")
 
-        if status == 200:
-            # data_response_survey = response_survey.json()
-            # result = data_response_survey["result"]
-            results = data.get("Results")
-            values = results["values"]
+        LOGGER.info("Qualtrics - end_survey() - Incoming data payload: %s", data)
+
+        status = data.get("Status") if isinstance(data, dict) else None
+        if status is None and isinstance(data, dict):
+            status = data.get("status")
+
+        is_successful_postback = str(status) == '200'
+
+        results = data.get("Results") if isinstance(data, dict) else None
+        values = {}
+        if isinstance(results, dict):
+            if isinstance(results.get("values"), dict):
+                values = results["values"]
+            else:
+                values = results
+
+        if is_successful_postback:
+            if not values:
+                LOGGER.warning("Qualtrics - end_survey() - Successful postback received, but no response values were found.")
+                return {
+                    "Message": "Data processed from the Qualtrics Event Subscription API postback `surveyengine.completedResponse` event."
+                }
 
             if not user_by_anonymous_id:
                 import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."
@@ -975,19 +1006,52 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                     # rebinds the user to the xblock so that a grade can be published for the correct user
                     self.system.rebind_noauth_module_to_user(self, real_user)
 
-                    if self.should_send_qualtrics_score_to_platform():
+                    # Always mark completion for successful survey submissions.
+                    self.is_answered = True
+                    LOGGER.info(
+                        "Qualtrics - end_survey() - Marked survey as answered (%s) for anonymous id %s (real_user id=%s username=%s email=%s)",
+                        self.is_answered,
+                        values["platform_anonymous_user_id"],
+                        getattr(real_user, 'id', None),
+                        getattr(real_user, 'username', None),
+                        getattr(real_user, 'email', None),
+                    )
+
+                    send_score_to_platform = self.should_send_qualtrics_score_to_platform()
+
+                    if send_score_to_platform:
                         score = self.calculate_score(values)
                         self.set_score(score)
-                        self.publish_grade()
                     else:
-                        self.score = None
+                        self.set_score(None)
 
-                    # Updates database survey status to complete
-                    # This is the Completion API call that will mark the survey as completed for the learner in the platform.
-                    self.is_answered = True
+                    # Persist user state before any runtime publish calls so state
+                    # survives even if event publishing fails.
+                    try:
+                        self.force_save_fields(['is_answered', 'score'])
+                    except Exception:  # pylint: disable=broad-except
+                        LOGGER.exception(
+                            "Qualtrics - end_survey() - force_save_fields failed; falling back to save()."
+                        )
+                        self.save()
+                    
+                    try:
+                        self.runtime.publish(self, "completion", {"completion": 1.0})
+                    except Exception:  # pylint: disable=broad-except
+                        LOGGER.exception(
+                            "Qualtrics - end_survey() - Failed to publish completion event after persisting state."
+                        )
+
+                    if send_score_to_platform:
+                        try:
+                            self.publish_grade()
+                        except Exception:  # pylint: disable=broad-except
+                            LOGGER.exception(
+                                "Qualtrics - end_survey() - Failed to publish grade event after persisting state."
+                            )
                 else:
                     LOGGER.warning(
-                        "Could not update the learner's score because the"
+                        "Could not update learner completion or score because the"
                         "`platform_anonymous_user_id` value was not found in the"
                         "Qualtrics survey response."
                     )
