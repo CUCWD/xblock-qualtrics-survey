@@ -81,6 +81,45 @@ collect that data on Qualtrics’ end.
 |image-cms-editor-2|
 
 
+Qualtrics Frame Rezize
+~~~~~~~~~~~~~~~~~~~~~~
+Add this code to each Qualtrics survey that needs resizing in the Look and Feel > Header section.
+
+.. code-block:: javascript
+
+   <script>
+      Qualtrics.SurveyEngine.addOnReady(function()
+      {
+      /* Place your JavaScript here to run when the page is fully displayed */
+
+      // --------------------------------------------------------------------
+      // Send Qualtrics survey height back to the platform for iframe resize.
+      // --------------------------------------------------------------------
+      (function() {
+         function sendHeight() {
+            var h = Math.max(
+            document.body ? document.body.scrollHeight : 0,
+            document.documentElement ? document.documentElement.scrollHeight : 0
+            );
+            window.parent.postMessage(
+            { type: 'qualtrics-survey-height', height: h },
+            '*'
+            );
+         }
+
+         sendHeight();
+
+         // Also send on window resize
+         window.addEventListener('resize', sendHeight);
+
+         // Resend after a brief delay in case content is still rendering
+         setTimeout(sendHeight, 500);
+      })();
+
+      });
+   </script>
+
+
 Participants
 ~~~~~~~~~~~~
 

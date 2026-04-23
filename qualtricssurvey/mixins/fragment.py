@@ -59,11 +59,7 @@ class XBlockFragmentBuilderMixin:
             js=static_js,
             js_init=js_init,
         )                        
-         
-        # Marks survey as incomplete for case that the learner's state was deleted
-        if (self.score is None):
-            self.is_answered = False
-       
+
         return fragment
 
     def build_fragment(
