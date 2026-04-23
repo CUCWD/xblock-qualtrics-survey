@@ -132,7 +132,7 @@ class QualtricsSurveyViewMixin(
         show_meta_information_string = ("display_meta={param_display_meta}").format(
             param_display_meta=param_display_meta,
         )
-        param_gradeable_subsection = True if getattr(self, 'graded', False) else False
+        param_gradeable_subsection = True if self.is_gradeable_subsection() else False
         gradeable_subsection_string = ("gradeable_subsection={param_gradeable_subsection}").format(
             param_gradeable_subsection=param_gradeable_subsection,
         )
