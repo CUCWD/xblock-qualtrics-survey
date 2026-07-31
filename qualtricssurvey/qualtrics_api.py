@@ -145,6 +145,7 @@ class QualtricsApi():
             LOGGER.error(u"QualtricsApi – Issue with get_survey_definition() – Survey ID ({})".format(survey_id)) 
 
         return response_survey_definition
+
     def get_survey_definition_questions(self, survey_id):
         """
         Retrieve survey definition questions
@@ -184,11 +185,48 @@ class QualtricsApi():
 
     #     return response_survey
 
-    def get_survey_score_id(self):
+    def get_survey_score_id(self, survey_id):
         """
         Locate the Qualtrics `Score Id` in configuration settings.
         """
-        return self._get_api_config_setting('QUALTRICS_SCORE_ID')
+        score_id = None
+        category_name = self._get_api_config_setting('QUALTRICS_SCORE_CATEGORY_NAME')
+
+        response_survey_definition = self.get_survey_definition(survey_id)
+        if response_survey_definition.ok:    
+            data_response_survey_definition = response_survey_definition.json()
+            result = data_response_survey_definition["result"]
+            categories = result.get("Scoring", {}).get("ScoringCategories", [])
+
+            # Qualtrics currently returns ScoringCategories as a list.
+            if isinstance(categories, list):
+                category_items = categories
+            elif isinstance(categories, dict):
+                category_items = categories.values()
+            else:
+                category_items = []
+
+            score_id = next(
+                (
+                    cat.get("ID")
+                    for cat in category_items
+                    if isinstance(cat, dict) and cat.get("Name") == category_name
+                ),
+                None,
+            )
+        
+        if score_id is None:
+            LOGGER.error(
+                u"QualtricsApi - get_survey_score_id() - Score category '{}' not found in survey '{}'".format(
+                    category_name, survey_id
+                )
+            )
+
+        LOGGER.info(u"QualtricsApi - get_survey_score_id() - Located score_id '{}' for category '{}' in survey '{}'".format(
+            score_id, category_name, survey_id
+        ))
+
+        return score_id
 
     def get_oauth_token(self):
         """

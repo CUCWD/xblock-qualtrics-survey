@@ -3,6 +3,7 @@ Handle data access logic for the XBlock
 """
 
 import six
+import json
 from datetime import datetime
 from xblock.scorable import ScorableXBlockMixin, Score
 from django.utils.translation import gettext_lazy as _
@@ -68,10 +69,11 @@ class CourseDetailsXBlockMixin(object):
             if block_iter_type == 'course':
                 # Safely access instructor_info and other_course_settings without raising KeyError
                 try:
-                    instructor_info = getattr(block_iter, 'instructor_info', {}) or {}
-                    qs_course_instructor = instructor_info.get('instructors', '')
-                except Exception:
-                    qs_course_instructor = ''
+                    qs_course_term = block_iter.other_course_settings['qualtrics_term']
+                except:
+                    LOGGER.error("QualtricsXblock - No qualtrics term found in other_course_settings")
+            
+            block_iter = block_iter.get_parent() if block_iter.parent else None
 
                 try:
                     other_settings = getattr(block_iter, 'other_course_settings', {}) or {}
@@ -511,7 +513,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
     """
     survey_completed = False
 
-    editable_fields = [
+    editable_field_names = (
         'display_name',
         'survey_id',
         'your_university',
@@ -534,7 +536,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         'show_simulation_exists',
         'show_meta_information',
         'weight'
-    ]
+    )
     course_id_override = String(
         display_name=_('Course Identifier:'),
         default='',
@@ -886,11 +888,42 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         return self.forward_course_organization_info
 
+    def is_gradeable_subsection(self):
+        """
+        Return True when this block is inside a graded subsection.
+        """
+        if getattr(self, 'graded', False):
+            return True
+
+        block_iter = self
+        while block_iter and getattr(block_iter, 'parent', None):
+            block_iter = block_iter.get_parent()
+            if getattr(block_iter, 'graded', False):
+                return True
+
+        return False
+
     def should_send_qualtrics_score_to_platform(self):
         """
         Return True/False to indicate whether to "Send Qualtrics Score to Platform" information.
         """
-        return self.send_qualtrics_score_to_platform
+        return self.send_qualtrics_score_to_platform and self.is_gradeable_subsection()
+
+    @property
+    def editable_fields(self):
+        """
+        Return Studio-editable fields, hiding score-to-platform setting when ungraded.
+        """
+        editable_fields = list(self.editable_field_names)
+
+        if not self.is_gradeable_subsection():
+            editable_fields = [
+                field_name
+                for field_name in editable_fields
+                if field_name != 'send_qualtrics_score_to_platform'
+            ]
+
+        return tuple(editable_fields)
 
     def should_show_simulation_exists(self):
         """
@@ -912,10 +945,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         Locate the Qualtrics `Score Id` in site configuration or general settings.
         """
-        # score_id = configuration_helpers.get_value(
-        #         "QUALTRICS_SCORE_ID", settings.QUALTRICS_SCORE_ID
-        #     )
-        return QualtricsApi(self.your_university).get_survey_score_id()
+        return QualtricsApi(self.your_university).get_survey_score_id(self.get_survey_id())
     
     def max_score(self):
         """
@@ -950,6 +980,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
 
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
+            score_id = self.get_survey_score_id()
 
             # Get the number of questions from the Qualtrics Survey Definition Questions
             # endpoint and find all questions with score value set.
@@ -964,14 +995,15 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                     if question["GradingData"] and question["QuestionID"] not in exclude_question_ids:
                         for grade_data in question["GradingData"]:
                             try:
-                                raw_possible += float(grade_data["Grades"][self.get_survey_score_id()])
+                                if score_id is not None and score_id in grade_data["Grades"]:
+                                    raw_possible += float(grade_data["Grades"][score_id])
                             except ValueError as err:
                                 # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
-                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for – Survey ID ({}) QID ({}) GradingData({}) – {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][self.get_survey_score_id()], err))
+                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for - Survey ID ({}) QID ({}) GradingData({}) - {}".format(self.get_survey_id(), question["QuestionID"], grade_data["Grades"][score_id], err))
                                 continue
                             except KeyError as err:
                                 # Sometimes we may forget to set a score grading value and `#` will get passed from Qualtrics.
-                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for – Survey ID ({}) QID ({}) – {}".format(self.get_survey_id(), question["QuestionID"], err))
+                                LOGGER.warning(u"Qualtrics - max_score() - Issue with getting raw_possible for - Survey ID ({}) QID ({}) - {}".format(self.get_survey_id(), question["QuestionID"], err))
                                 continue
         else:
             # Awards full points for completing a survey (default)
@@ -983,7 +1015,7 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
     @XBlock.json_handler
     def is_graded(self, data, suffix=''):
         # Returns if the survey is graded or not. Used on the Javscript file to loaded graded status.
-        return {'graded': self.graded}
+        return {'graded': self.is_gradeable_subsection()}
 
     @XBlock.json_handler
     def get_survey_status(self, data, suffix=''):
@@ -1002,14 +1034,29 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         """
         Called upon completion of the survey
         """
-    
-        status = data.get("Status")
 
-        if status == 200:
-            # data_response_survey = response_survey.json()
-            # result = data_response_survey["result"]
-            results = data.get("Results")
-            values = results["values"]
+        LOGGER.info("Qualtrics - end_survey() - Incoming data payload: %s", data)
+
+        status = data.get("Status") if isinstance(data, dict) else None
+        if status is None and isinstance(data, dict):
+            status = data.get("status")
+
+        is_successful_postback = str(status) == '200'
+
+        results = data.get("Results") if isinstance(data, dict) else None
+        values = {}
+        if isinstance(results, dict):
+            if isinstance(results.get("values"), dict):
+                values = results["values"]
+            else:
+                values = results
+
+        if is_successful_postback:
+            if not values:
+                LOGGER.warning("Qualtrics - end_survey() - Successful postback received, but no response values were found.")
+                return {
+                    "Message": "Data processed from the Qualtrics Event Subscription API postback `surveyengine.completedResponse` event."
+                }
 
             if not user_by_anonymous_id:
                 import_error_anonymous_id = "Could not import `user_by_anonymous_id` from edx-platform student app."
@@ -1036,15 +1083,52 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
                     # rebinds the user to the xblock so that a grade can be published for the correct user
                     self.system.rebind_noauth_module_to_user(self, real_user)
 
-                    score = self.calculate_score(values)
-                    self.set_score(score)
-                    self.publish_grade()
-                
-                    # Updates database survey status to complete
+                    # Always mark completion for successful survey submissions.
                     self.is_answered = True
+                    LOGGER.info(
+                        "Qualtrics - end_survey() - Marked survey as answered (%s) for anonymous id %s (real_user id=%s username=%s email=%s)",
+                        self.is_answered,
+                        values["platform_anonymous_user_id"],
+                        getattr(real_user, 'id', None),
+                        getattr(real_user, 'username', None),
+                        getattr(real_user, 'email', None),
+                    )
+
+                    send_score_to_platform = self.should_send_qualtrics_score_to_platform()
+
+                    if send_score_to_platform:
+                        score = self.calculate_score(values)
+                        self.set_score(score)
+                    else:
+                        self.set_score(None)
+
+                    # Persist user state before any runtime publish calls so state
+                    # survives even if event publishing fails.
+                    try:
+                        self.force_save_fields(['is_answered', 'score'])
+                    except Exception:  # pylint: disable=broad-except
+                        LOGGER.exception(
+                            "Qualtrics - end_survey() - force_save_fields failed; falling back to save()."
+                        )
+                        self.save()
+                    
+                    try:
+                        self.runtime.publish(self, "completion", {"completion": 1.0})
+                    except Exception:  # pylint: disable=broad-except
+                        LOGGER.exception(
+                            "Qualtrics - end_survey() - Failed to publish completion event after persisting state."
+                        )
+
+                    if send_score_to_platform:
+                        try:
+                            self.publish_grade()
+                        except Exception:  # pylint: disable=broad-except
+                            LOGGER.exception(
+                                "Qualtrics - end_survey() - Failed to publish grade event after persisting state."
+                            )
                 else:
                     LOGGER.warning(
-                        "Could not update the learner's score because the"
+                        "Could not update learner completion or score because the"
                         "`platform_anonymous_user_id` value was not found in the"
                         "Qualtrics survey response."
                     )
@@ -1094,7 +1178,9 @@ class QualtricsSurveyModelMixin(ScorableXBlockMixin, CourseDetailsXBlockMixin, O
         if self.should_send_qualtrics_score_to_platform():
             # Find score values from Qualtrics
             if values is not None:
-                raw_earned = float(values[self.get_survey_score_id()])
+                score_id = self.get_survey_score_id()
+                if score_id is not None and score_id in values:
+                    raw_earned = float(values[score_id])
         else:
             # Awards full points for completing a survey (default)
             raw_earned = (self.weight if self.weight is not None and self.weight > 0 else 1.0)

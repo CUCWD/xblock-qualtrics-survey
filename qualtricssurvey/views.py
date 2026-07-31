@@ -132,6 +132,10 @@ class QualtricsSurveyViewMixin(
         show_meta_information_string = ("display_meta={param_display_meta}").format(
             param_display_meta=param_display_meta,
         )
+        param_gradeable_subsection = True if self.is_gradeable_subsection() else False
+        gradeable_subsection_string = ("gradeable_subsection={param_gradeable_subsection}").format(
+            param_gradeable_subsection=param_gradeable_subsection,
+        )
         param_survey_completed = 'The survey is done' if self.survey_completed else 'Please continue to finish the survey'
 
         context.update({
@@ -158,6 +162,7 @@ class QualtricsSurveyViewMixin(
             'forward_course_organization_data': forward_course_organization_data_string.strip(),
             'show_simulation_exists_string': show_simulation_exists_string.strip(),
             'show_meta_information_string': show_meta_information_string.strip(),
+            'gradeable_subsection_string': gradeable_subsection_string.strip(),
             'message': self.message,
             'survey_completed': param_survey_completed,
             'anon_user_id_string': anon_user_id_string,

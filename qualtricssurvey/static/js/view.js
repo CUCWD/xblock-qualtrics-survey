@@ -21,12 +21,66 @@ function QualtricsSurveyView(runtime, element) {
   // To find elements inside your XBlock, try:
   // var myElement = $element.find('.myElement');
   
-  var earned_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .earned_score')
-  var possible_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .possible_score')
-  var status_html = $('.qualtricssurvey_block .qualtrics_message .grade .status')
-  var graded_html = $('.qualtricssurvey_block .qualtrics_message .grade .is_graded')
+  var grade_html = $element.find('.qualtrics_message .grade')
+  var grade_points_html = $element.find('.qualtrics_message .grade .grade_points')
+  var earned_score_html = $element.find('.qualtrics_message .grade .earned_score')
+  var possible_score_html = $element.find('.qualtrics_message .grade .possible_score')
+  var status_html = $element.find('.qualtrics_message .grade .status')
+  var graded_html = $element.find('.qualtrics_message .grade .is_graded')
+  var iframe_html = $element.find('iframe.qualtrics-survey-iframe')
   
   var handlerUrl = runtime.handlerUrl(element, 'get_survey_status');
+  var pollIntervalMs = 3000
+  var defaultIframeHeight = 900
+  var minIframeHeight = 300
+  var maxIframeHeight = 1000
+  var iframeHeightBufferPx = 24
+
+  var isGraded = false
+
+  function setIframeHeight(height) {
+    var parsedHeight = parseInt(height, 10)
+    if (!Number.isFinite(parsedHeight) || parsedHeight <= 0) {
+      return
+    }
+
+    // Add a small buffer so embedded content doesn't clip at the bottom.
+    parsedHeight += iframeHeightBufferPx
+
+    // Keep the iframe height within a sane range.
+    var boundedHeight = Math.min(Math.max(parsedHeight, minIframeHeight), maxIframeHeight)
+    iframe_html.height(boundedHeight)
+  }
+
+  function initializeIframeAutoResize() {
+    if (!iframe_html.length) {
+      return
+    }
+
+    iframe_html.height(defaultIframeHeight)
+
+    var iframeSrc = iframe_html.attr('src')
+    if (!iframeSrc) {
+      return
+    }
+
+    var qualtricsOrigin = new URL(iframeSrc, window.location.href).origin
+    window.addEventListener('message', function (event) {
+      if (event.origin !== qualtricsOrigin) {
+        return
+      }
+
+      var payload = event.data
+      if (payload && payload.type === 'qualtrics-survey-height') {
+        setIframeHeight(payload.height)
+        return
+      }
+
+      if (payload && typeof payload.height !== 'undefined') {
+        setIframeHeight(payload.height)
+      }
+    })
+  }
 
   /* Set the graded status for the xblock */
   function updateGradedStatus() {
@@ -35,35 +89,50 @@ function QualtricsSurveyView(runtime, element) {
         url: runtime.handlerUrl(element, 'is_graded'),
         data: '{}',
         success: function (data) {
-          $element.find(graded_html).text(
-            data.graded ? '(Graded) ' : '(Ungraded) ' 
-          );
+          isGraded = data.graded
+          if (isGraded) {
+            graded_html.text('(Graded) ')
+            grade_points_html.show()
+          }
+          else {
+            // For ungraded subsections, show only the ungraded label.
+            graded_html.text('(Ungraded) ')
+            grade_points_html.hide()
+          }
+        },
+        complete: function () {
+          updateView()
         },
         dataType: 'json'
     });
   }
 
   /* Regularly check to see if score was received and display to the learner */
-  function updateView(event) {
-    setTimeout(function() { 
-      $.ajax({
-        method: "POST",
-        url: handlerUrl,
-        data: JSON.stringify({}),
-        success: function (data) {
-          if (data.is_answered == true) {
-            $element.find(earned_score_html).text(data.earned_score.toFixed(1))
-            $element.find(possible_score_html).text(data.possible_score.toFixed(1))
-            $element.find(status_html).addClass("fa fa-check-circle graded")
-          }
-          else {
-            updateView()
+  function updateView() {
+    $.ajax({
+      method: "POST",
+      url: handlerUrl,
+      data: JSON.stringify({}),
+      success: function (data) {
+        if (data.is_answered == true) {
+          earned_score_html.text(data.earned_score.toFixed(1))
+          possible_score_html.text(data.possible_score.toFixed(1))
+
+          /* If the survey is graded, show a green checkmark for completed */
+          /* If the survey is ungraded, show a gray checkmark for completed. */
+          if (isGraded) {
+            status_html.removeClass('ungraded').addClass('fa fa-check-circle graded')
+          } else {
+            status_html.removeClass('graded').addClass('fa fa-check-circle ungraded')
           }
         }
-      });
-    }, 3000)
+      },
+      complete: function () {
+        setTimeout(updateView, pollIntervalMs)
+      }
+    });
   }
 
+  initializeIframeAutoResize()
   updateGradedStatus();
-  updateView();
 }
