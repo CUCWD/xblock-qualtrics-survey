@@ -21,10 +21,12 @@ function QualtricsSurveyView(runtime, element) {
   // To find elements inside your XBlock, try:
   // var myElement = $element.find('.myElement');
   
-  var earned_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .earned_score')
-  var possible_score_html = $('.qualtricssurvey_block .qualtrics_message .grade .possible_score')
-  var status_html = $('.qualtricssurvey_block .qualtrics_message .grade .status')
-  var graded_html = $('.qualtricssurvey_block .qualtrics_message .grade .is_graded')
+  var grade_html = $element.find('.qualtrics_message .grade')
+  var grade_points_html = $element.find('.qualtrics_message .grade .grade_points')
+  var earned_score_html = $element.find('.qualtrics_message .grade .earned_score')
+  var possible_score_html = $element.find('.qualtrics_message .grade .possible_score')
+  var status_html = $element.find('.qualtrics_message .grade .status')
+  var graded_html = $element.find('.qualtrics_message .grade .is_graded')
   
   var handlerUrl = runtime.handlerUrl(element, 'get_survey_status');
 
@@ -35,16 +37,23 @@ function QualtricsSurveyView(runtime, element) {
         url: runtime.handlerUrl(element, 'is_graded'),
         data: '{}',
         success: function (data) {
-          $element.find(graded_html).text(
-            data.graded ? '(Graded) ' : '(Ungraded) ' 
-          );
+          if (data.graded) {
+            graded_html.text('(Graded) ')
+            grade_points_html.show()
+            updateView()
+          }
+          else {
+            // For ungraded subsections, show only the ungraded label.
+            grade_html.text('(Ungraded)')
+            grade_points_html.hide()
+          }
         },
         dataType: 'json'
     });
   }
 
   /* Regularly check to see if score was received and display to the learner */
-  function updateView(event) {
+  function updateView() {
     setTimeout(function() { 
       $.ajax({
         method: "POST",
@@ -52,9 +61,9 @@ function QualtricsSurveyView(runtime, element) {
         data: JSON.stringify({}),
         success: function (data) {
           if (data.is_answered == true) {
-            $element.find(earned_score_html).text(data.earned_score.toFixed(1))
-            $element.find(possible_score_html).text(data.possible_score.toFixed(1))
-            $element.find(status_html).addClass("fa fa-check-circle graded")
+            earned_score_html.text(data.earned_score.toFixed(1))
+            possible_score_html.text(data.possible_score.toFixed(1))
+            status_html.addClass("fa fa-check-circle graded")
           }
           else {
             updateView()
@@ -65,5 +74,4 @@ function QualtricsSurveyView(runtime, element) {
   }
 
   updateGradedStatus();
-  updateView();
 }
