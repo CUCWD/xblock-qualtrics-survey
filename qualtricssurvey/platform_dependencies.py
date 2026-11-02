@@ -1,3 +1,4 @@
+"""Resolve platform user lookup imports across supported Open edX releases."""
 # -*- coding: utf-8 -*-
 #
 # Copyright (c) 2014-2015 Harvard, edX & OpenCraft

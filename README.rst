@@ -29,6 +29,25 @@ You'll also need to add this to your `INSTALLED_APPS`:
     qualtricssurvey
 
 
+Ulmo dependency management
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Provision the environment with the target edx-platform requirements first.
+This XBlock declares its runtime dependencies without version pins so that
+Ulmo controls the shared package versions. To install this checkout without
+changing those versions, run from this repository::
+
+    python -m pip install --no-deps .
+
+For editable installation, use ``python -m pip install --no-deps -e .``.
+These commands assume all runtime dependencies are already installed by the
+platform, including its configured edx-organizations package.
+
+``requirements/base.txt`` forwards to the unpinned ``base.in`` declarations,
+and ``make upgrade`` preserves that arrangement. The other requirements files
+and ``make requirements`` are for isolated development and CI environments;
+do not install their pinned dependencies or constraints into edx-platform.
+
 Course Staff
 ~~~~~~~~~~~~
 
@@ -45,6 +64,36 @@ and add the following:
 
 |image-cms-advanced-module-list|
 
+
+Standalone Python tests
+-----------------------
+
+The XBlock uses LMS services that are not installed by pip. Standalone tests
+use explicit service doubles from ``test_utils`` and load the real Ulmo
+``ScoreField`` from an edx-platform checkout. Production imports are unchanged.
+
+From this repository, run::
+
+    export QUALTRICS_TEST_PLATFORM_ROOT=/path/to/ulmo/openedx-platform
+    tox -e django42,django52
+
+CI fetches ``xmodule/fields.py`` from platform commit
+``46c543590c78aa1bfa846d47a4f1c5c6ec388490``. Test-only shared dependency pins
+in ``requirements/test-constraints.txt`` match that Ulmo checkout; refresh them
+when upgrading the target platform. Tox selects Django 4.2 for compatibility
+coverage and Django 5.2.11 for Ulmo.
+
+These tests exercise iframe rendering, resource loading, workbench scenarios,
+and score handling. LMS database services, external Qualtrics requests, and
+end-to-end gradebook behavior require integration tests inside edx-platform.
+
+Run Python style and static analysis checks with ``tox -e quality``. The quality
+environment uses Django 5.2.11 and the same Ulmo dependency constraints as the
+tests. Its minimal Django settings do not require an edx-platform checkout.
+Both pycodestyle and pylint allow 120-character lines; LMS-only imports are
+excluded from pylint's import resolution. Local pylint overrides live in
+``pylintrc_tweaks``; regenerate ``pylintrc`` with ``edx_lint write pylintrc``
+after editing them.
 
 Use
 ---

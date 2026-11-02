@@ -2,25 +2,35 @@ name: Python CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, 'develop/ulmo.master']
   pull_request:
     branches:
-    - '*'
+    - '**'
 
 jobs:
   run_tests:
     name: Tests
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest]
         python-version: ['3.11', '3.12']
         toxenv: [django42, django52, quality, csslint, eslint]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+    - name: Checkout Ulmo score fields for standalone tests
+      if: startsWith(matrix.toxenv, 'django')
+      uses: actions/checkout@v4
+      with:
+        repository: openedx/openedx-platform
+        ref: 46c543590c78aa1bfa846d47a4f1c5c6ec388490
+        path: .ci-platform
+        sparse-checkout-cone-mode: false
+        sparse-checkout: /xmodule/fields.py
     - name: setup python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -36,4 +46,5 @@ jobs:
     - name: Run Tests
       env:
         TOXENV: ${{ matrix.toxenv }}
+        QUALTRICS_TEST_PLATFORM_ROOT: ${{ github.workspace }}/.ci-platform
       run: tox

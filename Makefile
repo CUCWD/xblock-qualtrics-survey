@@ -79,9 +79,9 @@ upgrade: $(COMMON_CONSTRAINTS_TXT)  ## update the requirements/*.txt files with 
 	pip-compile --upgrade -o requirements/pip_tools.txt requirements/pip_tools.in
 	pip install -qr requirements/pip.txt
 	pip install -qr requirements/pip_tools.txt
-	pip-compile --upgrade -o requirements/base.txt requirements/base.in
-	pip-compile --upgrade -o requirements/test.txt requirements/test.in
-	pip-compile --upgrade -o requirements/quality.txt requirements/quality.in
+	# Keep base.txt as a reference to base.in; runtime versions belong to edx-platform.
+	# Keep test.txt as a reference to test.in; tox selects the Django version.
+	# Keep quality.txt as a reference to quality.in and the shared test constraints.
 	pip-compile --upgrade -o requirements/tox.txt requirements/tox.in
 	pip-compile --upgrade -o requirements/ci.txt requirements/ci.in
 

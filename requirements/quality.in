@@ -1,8 +1,6 @@
-# Requirements for code quality checks
--c constraints.txt
+# Standalone quality checks use the same shared dependency stack as unit tests.
+-r test.in
 
--r base.txt
--r test.txt
-
-pycodestyle
-pylint
+edx-lint==5.6.0
+pycodestyle==2.14.0
+pylint==3.3.9

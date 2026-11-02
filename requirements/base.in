@@ -1,5 +1,12 @@
-# Core requirements for using this package
--c constraints.txt
-
+# Runtime dependency versions are owned by the host edx-platform environment.
+# Do not include development constraints or compiled pins here.
 Django
 XBlock
+edx-opaque-keys
+edx-organizations
+lazy
+requests
+# resource_string() uses pkg_resources, supplied by the platform's setuptools.
+setuptools
+six
+web-fragments
