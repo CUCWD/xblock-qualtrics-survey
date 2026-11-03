@@ -1,3 +1,4 @@
+# Development/test constraints only; do not apply to platform installs.
 # Version constraints for pip-installation.
 #
 # This file doesn't install any packages. It specifies version constraints

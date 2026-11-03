@@ -1,0 +1,12 @@
+# Local additions to the edx-lint configuration.
+[MASTER]
+ignore=migrations
+load-plugins=edx_lint.pylint,pylint_django,pylint_celery
+
+[BASIC]
+# These names are part of the persisted XBlock fields and public mixin API.
+good-names+=get_user_enrolled_in_school_type,forward_platform_user_demographic_data,forward_course_organization_info,send_qualtrics_score_to_platform,should_forward_platform_user_demographic_data
+
+[TYPECHECK]
+# These modules are supplied by edx-platform or its optional registration app.
+ignored-modules=openedx,xmodule,common,lms,student,custom_reg_form

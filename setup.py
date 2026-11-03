@@ -8,7 +8,17 @@ from os import path, walk
 from setuptools import find_packages, setup
 
 
-version = '2.1.9'
+def get_version():
+    """Read the package version without importing runtime dependencies."""
+    version_path = path.join(path.abspath(path.dirname(__file__)), 'qualtricssurvey', '__init__.py')
+    with open(version_path, encoding='utf-8') as version_file:
+        match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", version_file.read(), re.MULTILINE)
+    if match:
+        return match.group(1)
+    raise RuntimeError('Unable to find the package version.')
+
+
+version = get_version()
 description = __doc__.strip().split('\n')[0]
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.rst')) as file_in:

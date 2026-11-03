@@ -1,4 +1,6 @@
+"""Load bundled XBlock resources."""
 import pkg_resources
+
 
 def resource_string(path):
     """
